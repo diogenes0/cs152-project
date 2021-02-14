@@ -7,6 +7,7 @@ import logging
 import re
 import requests
 from report import Report
+from collections import defaultdict
 
 # Set up logging to the console
 logger = logging.getLogger('discord')
@@ -33,6 +34,8 @@ class ModBot(discord.Client):
         self.group_num = None   
         self.mod_channels = {} # Map from guild to the mod channel id for that guild
         self.reports = {} # Map from user IDs to the state of their report
+        self.message_report_count = defaultdict(int) #Map from message IDs to count of reports against message
+        self.author_reportee_count = defaultdict(int) #Map from user IDs to count of reports against them
         self.perspective_key = key
 
     async def on_ready(self):

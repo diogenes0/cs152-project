@@ -7,6 +7,7 @@ import logging
 import re
 import requests
 from report import Report
+from unidecode import unidecode
 
 
 class ModBot(discord.Client):
@@ -15,7 +16,7 @@ class ModBot(discord.Client):
         super().__init__(command_prefix='.', intents=intents)
         self.group_num = None
         self.mod_channels = {} # Map from guild to the mod channel id for that guild
-        self.reports = {} # Map from user IDs to the state of their report
+        self.reports = [] # List of reports
         self.perspective_key = key
 
     async def on_ready(self):
@@ -63,30 +64,38 @@ class ModBot(discord.Client):
             await message.channel.send(reply)
             return
 
-        author_id = message.author.id
+        author = message.author
         responses = []
 
         # Only respond to messages if they're part of a reporting flow
-        if author_id not in self.reports and not message.content.startswith(Report.START_KEYWORD):
+        if author not in [report.reporter for report in self.reports] and not message.content.startswith(Report.START_KEYWORD):
             return
 
         # If we don't currently have an active report for this user, add one
-        if author_id not in self.reports:
-            self.reports[author_id] = Report(self)
+        if author not in [report.reporter for report in self.reports]:
+            self.reports.append(Report(self, author))
+
+        # Finds the report belonging to author
+        # Note that each client can only have one report
+        report_index = None
+        for i in range(len(self.reports)):
+            if self.reports[i].reporter == author:
+                report_index = i
+                break
 
         # Let the report class handle this message; forward all the messages it returns to uss
-        responses = await self.reports[author_id].handle_message(message)
+        responses = await self.reports[report_index].handle_message(message)
         for r in responses:
             await message.channel.send(r)
 
         # If the report is complete or cancelled, remove it from our map
-        if self.reports[author_id].report_complete():
-            self.reports.pop(author_id)
+        if self.reports[report_index].report_complete():
+            self.reports.pop(report_index)
 
     async def handle_channel_message(self, message):
         # Allow the bot to take input from the mods
         if message.channel.name == f'group-{self.group_num}-mod':
-            for report in self.reports.values():
+            for report in self.reports:
                 if message.reference == report.mod_message:
                     await report.moderate(message)
                     break
@@ -98,9 +107,9 @@ class ModBot(discord.Client):
 
     async def moderate_message(self, message):
         if self.eval_text(message):
-            report = Report(self)
+            report = Report(self, self.user)
             await report.automoderate(message)
-            self.reports[self.user] = report
+            self.reports.append(report)
 
     def eval_text(self, message):
         '''
@@ -126,7 +135,7 @@ class ModBot(discord.Client):
         for attr in response_dict["attributeScores"]:
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
 
-        if "fuck" in message.content:
+        if "fuck" in unidecode(message.content):
             return True
         return False
 

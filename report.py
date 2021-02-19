@@ -24,13 +24,15 @@ class Report:
 	INTIMATE_KEYWORD = "intimate materials"
 	OTHER_KEYWORD = "other"
 
+	X_EMOJI = "❌"
+
 	TYPES = [SPAM_KEYWORD, FRAUD_KEYWORD, HATE_KEYWORD, VIOLENCE_KEYWORD, INTIMATE_KEYWORD, OTHER_KEYWORD]
 
-	def __init__(self, client):
+	def __init__(self, client, reporter):
 		self.state = State.REPORT_START
 		self.client = client
 		self.type = None
-		self.reporter = None
+		self.reporter = reporter
 		self.reported_message = None
 		self.comment = None
 		self.mod_message = None
@@ -66,7 +68,6 @@ class Report:
 		reply += "Please copy paste the link to the message you want to report.\n"
 		reply += "You can obtain this link by right-clicking the message and clicking `Copy Message Link`."
 		self.state = State.AWAITING_MESSAGE
-		self.reporter = message.author
 		return [reply]
 
 
@@ -142,7 +143,8 @@ class Report:
 	This function applies the decision of the moderators to a message
 	'''
 	async def moderate(self, message):
-		await reported_message.add_reaction(discord.Emoji())
+		await reported_message.clear_reactions()
+		await reported_message.add_reaction(self.X_EMOJI)
 		self.state = State.REPORT_COMPLETE
 
 
@@ -162,7 +164,7 @@ class Report:
 	'''
 	async def hide_message(self):
 		await self.reported_message.clear_reactions()
-		await self.reported_message.add_reaction("❌") # TODO figure out emoji
+		await self.reported_message.add_reaction(self.X_EMOJI) # TODO figure out emoji
 
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE

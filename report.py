@@ -157,7 +157,7 @@ class Report:
 	async def send_report(self, message):
 		if message.content == self.CONFIRM_KEYWORD:
 			mod_channel = self.client.mod_channels[self.reported_message.guild.id]
-			self.mod_message = await mod_channel.send(str(self))
+			self.mod_message = await mod_channel.send("New report arrived")
 			self.state = State.AWAITING_MODERATION
 			return ["Your report has been sent to the mods"]
 		else:
@@ -206,7 +206,7 @@ class Report:
 		self.type = eval[1]
 
 		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
-		self.mod_message = await mod_channel.send(str(self))
+		self.mod_message = await mod_channel.send("New report arrived")
 		await self.hide_message()
 
 

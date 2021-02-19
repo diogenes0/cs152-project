@@ -9,7 +9,21 @@ import requests
 from report import Report
 from unidecode import unidecode
 
-mod_help = "This is a message to help out the mods. Good luck!"
+def make_mod_help():
+    mod_help =  "Type `next` to see the next report\n"
+    mod_help += "Type `help` to see this message\n"
+    mod_help += "Reply directly to a report to moderate it\n"
+    mod_help += "Here are your options moderating a report\n"
+    mod_help += "`law`        incident is reported to law enforcement\n"
+    mod_help += "`m_demote`   message is demoted in search\n"
+    mod_help += "`m_hide`     message is hidden on platform. No user can access it\n"
+    mod_help += "`m_shadow`   message is hidden from world. Available to poster\n"
+    mod_help += "`u_demote`   user is demoted in search and recommendations\n"
+    mod_help += "`u_hide`     user is hidden in search and recommendations\n"
+    mod_help += "`u_shadow`   user is shadowbanned. Nothing they do is visible to anyone but them\n"
+    mod_help += "`u_suspend`  users is suspended from platform temporarily\n"
+    mod_help += "`u_ban`      user is banned from platform. account is deactivated\n"
+    mod_help += "`none`       no action is taken\n"
 
 class ModBot(discord.Client):
     def __init__(self, key):
@@ -20,6 +34,7 @@ class ModBot(discord.Client):
         self.reports = [] # List of reports
         self.perspective_key = key
         self.threshold = 0.5 # threshold to auto-hide a message
+        self.mod_help = make_mod_help() # makes mod help message
 
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
@@ -104,7 +119,7 @@ class ModBot(discord.Client):
         self.reports = [report for report in self.reports if not report.report_complete()]
 
         if message.content == "help":
-            return await message.channel.send(mod_help)
+            return await message.channel.send(self.mod_help)
 
         if message.reference != None:
             for report in self.reports:
@@ -162,6 +177,10 @@ class ModBot(discord.Client):
 
     def code_format(self, text):
         return "```" + text + "```"
+
+    async def on_member_join(self, member):
+        print(f"{member.name} joined the channel!")
+        await member.send("Welcome the the channel!")
 
 
 def main():

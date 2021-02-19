@@ -52,6 +52,9 @@ class ModBot(discord.Client):
         else:
             await self.handle_dm(message)
 
+    async def on_message_edit(self, before, after):
+        await self.on_message(after)
+
     async def handle_dm(self, message):
         # Handle a help message
         if message.content == Report.HELP_KEYWORD:
@@ -69,7 +72,7 @@ class ModBot(discord.Client):
 
         # If we don't currently have an active report for this user, add one
         if author_id not in self.reports:
-            self.reports[author_id] = Report(self, self.mod_channels)
+            self.reports[author_id] = Report(self)
 
         # Let the report class handle this message; forward all the messages it returns to uss
         responses = await self.reports[author_id].handle_message(message)
@@ -81,17 +84,23 @@ class ModBot(discord.Client):
             self.reports.pop(author_id)
 
     async def handle_channel_message(self, message):
-        # Only handle messages sent in the "group-#" channel
-        if not message.channel.name == f'group-{self.group_num}':
+        # Allow the bot to take input from the mods
+        if message.channel.name == f'group-{self.group_num}-mod':
+            for report in self.reports.values():
+                if message.reference == report.mod_message:
+                    await report.moderate(message)
+                    break
             return
 
-		# Forward the message to the mod channel
-        mod_channel = self.mod_channels[message.guild.id]
-        await mod_channel.send(f'Forwarded message:\n{message.author.name}: "{message.content}"')
+        # Don't handle messages not sent in the "group-#" channel
+        if message.channel.name == f'group-{self.group_num}':
+            await self.moderate_message(message)
 
-        scores = self.eval_text(message)
-        await mod_channel.send(self.code_format(json.dumps(scores, indent=2)))
-
+    async def moderate_message(self, message):
+        if self.eval_text(message):
+            report = Report(self)
+            await report.automoderate(message)
+            self.reports[self.user] = report
 
     def eval_text(self, message):
         '''
@@ -117,7 +126,9 @@ class ModBot(discord.Client):
         for attr in response_dict["attributeScores"]:
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
 
-        return scores
+        if "fuck" in message.content:
+            return True
+        return False
 
     def code_format(self, text):
         return "```" + text + "```"

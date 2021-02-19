@@ -6,9 +6,10 @@ class State(Enum):
 	REPORT_START = auto()
 	AWAITING_MESSAGE = auto()
 	MESSAGE_IDENTIFIED = auto()
-	REPORT_COMPLETE = auto()
 	AWAITING_COMMENTS = auto()
 	AWAITING_CONFIRMATION = auto()
+	AWAITING_MODERATION = auto()
+	REPORT_COMPLETE = auto()
 
 class Report:
 	START_KEYWORD = "report"
@@ -25,13 +26,14 @@ class Report:
 
 	TYPES = [SPAM_KEYWORD, FRAUD_KEYWORD, HATE_KEYWORD, VIOLENCE_KEYWORD, INTIMATE_KEYWORD, OTHER_KEYWORD]
 
-	def __init__(self, client, mod_channels):
+	def __init__(self, client):
 		self.state = State.REPORT_START
 		self.client = client
+		self.type = None
 		self.reporter = None
 		self.reported_message = None
 		self.comment = None
-		self.mod_channels = mod_channels
+		self.mod_message = None
 
 	'''
 	This function makes up the meat of the user-side reporting flow. It defines how we transition between states and what
@@ -70,6 +72,7 @@ class Report:
 
 	'''
 	This function reads a link to a discord message, parses out the message and informs the user of it
+	If the message is severe enough, it is hidden pending moderation
 	'''
 	async def read_message(self, message):
 		# Parse out the three ID strings from the message link
@@ -89,6 +92,8 @@ class Report:
 		# Here we've found the message - it's up to you to decide what to do next!
 		self.state = State.MESSAGE_IDENTIFIED
 		self.reported_message = message
+		if self.client.eval_text(self.reported_message):
+			await self.hide_message()
 		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
 				"If this is not the right message, type `cancel` and restart to reporting process.\n" + \
 				"Otherwise, let me know which of the following abuse types this message is\n" + \
@@ -126,11 +131,38 @@ class Report:
 	'''
 	async def send_report(self, message):
 		if message.content == self.CONFIRM_KEYWORD:
-			mod_channel = self.mod_channels[self.reported_message.guild.id]
-			await mod_channel.send(str(self))
+			mod_channel = self.client.mod_channels[self.reported_message.guild.id]
+			self.mod_message = await mod_channel.send(str(self))
+			self.state = State.AWAITING_MODERATION
 			return ["Your report has been sent to the mods"]
 		else:
 			return ["Reply `yes` to send this report to the mods\nReply `cancel` to cancel the reporting process"]
+
+	'''
+	This function applies the decision of the moderators to a message
+	'''
+	async def moderate(self, message):
+		await reported_message.add_reaction(discord.Emoji())
+		self.state = State.REPORT_COMPLETE
+
+
+	'''
+	This function is called when a message is automatically flagged as severe enough to warrant automoderation
+	'''
+	async def automoderate(self, message):
+		self.reporter = self.client.user
+		self.reported_message = message
+		self.comment = "Automatically generated report"
+		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
+		self.mod_message = await mod_channel.send(str(self))
+		await self.hide_message()
+
+	'''
+	This function temporarily hides the reported message while it is under review
+	'''
+	async def hide_message(self):
+		await self.reported_message.clear_reactions()
+		await self.reported_message.add_reaction("❌") # TODO figure out emoji
 
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE
@@ -139,8 +171,8 @@ class Report:
 	Having a built-in string method is nice for many reasons
 	'''
 	def __str__(self):
-		s =  "User `{}` reported the following message from user `{}`\n".format(self.reporter.name, self.reported_message.author.name)
-		s += "`{}`\n".format(self.reported_message.content)
-		s += "The following comments are attached:\n"
-		s += "`{}`".format(self.comment)
+		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as {self.type}\n"
+		s += f"`{self.reported_message.content}`\n"
+		s += f"The following comments are attached:\n"
+		s += f"`{self.comment}`"
 		return s

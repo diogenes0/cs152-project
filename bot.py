@@ -85,12 +85,13 @@ class ModBot(discord.Client):
         if not message.channel.name == f'group-{self.group_num}':
             return
 
-        # Forward the message to the mod channel
+		# Forward the message to the mod channel
         mod_channel = self.mod_channels[message.guild.id]
         await mod_channel.send(f'Forwarded message:\n{message.author.name}: "{message.content}"')
 
         scores = self.eval_text(message)
         await mod_channel.send(self.code_format(json.dumps(scores, indent=2)))
+
 
     def eval_text(self, message):
         '''
@@ -99,7 +100,7 @@ class ModBot(discord.Client):
         PERSPECTIVE_URL = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze'
 
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
-        data_dict = {
+        data_dict = { 
             'comment': {'text': message.content},
             'languages': ['en'],
             'requestedAttributes': {

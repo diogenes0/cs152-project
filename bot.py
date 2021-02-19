@@ -45,6 +45,10 @@ class ModBot(discord.Client):
         This function is called whenever a message is sent in a channel that the bot can see (including DMs).
         Currently the bot is configured to only handle messages that are sent over DMs or in your group's "group-#" channel.
         '''
+
+        if message.content == "$CLEAR_THIS_CHANNEL_REALLY":
+            await message.channel.purge()
+
         # Ignore messages from us
         if message.author.id == self.user.id:
             return
@@ -94,16 +98,29 @@ class ModBot(discord.Client):
         if self.reports[report_index].report_complete():
             self.reports.pop(report_index)
 
+
+    async def handle_mod_message(self, message):
+        # remove completed reports
+        self.reports = [report for report in self.reports if not report.report_complete()]
+
+        if message.content == "help":
+            return await message.channel.send(mod_help)
+
+        if message.reference != None:
+            for report in self.reports:
+                if message.reference.message_id == report.mod_message.id:
+                    return await report.moderate(message)
+
+        if message.content == "next":
+            if not self.reports:
+                return await message.channel.send("There are no reports to moderate")
+            self.reports.sort(reverse=True)
+            return await self.reports[0].bump()
+
     async def handle_channel_message(self, message):
         # Allow the bot to take input from the mods
         if message.channel.name == f'group-{self.group_num}-mod':
-            for report in self.reports:
-                if message.reference.message_id == report.mod_message.id:
-                    await report.moderate(message)
-                    break
-            else:
-                await self.mod_channels[message.guild.id].send(mod_help)
-            return
+            return await self.handle_mod_message(message)
 
         # Don't handle messages not sent in the "group-#" channel
         if message.channel.name == f'group-{self.group_num}':

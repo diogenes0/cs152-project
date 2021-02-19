@@ -2,6 +2,7 @@ from enum import Enum, auto
 import discord
 import re
 from datetime import datetime
+import functools
 
 class State(Enum):
 	REPORT_START = auto()
@@ -12,6 +13,7 @@ class State(Enum):
 	AWAITING_MODERATION = auto()
 	REPORT_COMPLETE = auto()
 
+@functools.total_ordering
 class Report:
 	START_KEYWORD = "report"
 	CANCEL_KEYWORD = "cancel"
@@ -76,6 +78,7 @@ class Report:
 			return await self.send_report(message)
 		else:
 			return []
+
 
 	'''
 	This function prints a message and starts the reporting flow
@@ -160,6 +163,7 @@ class Report:
 		else:
 			return ["Reply `yes` to send this report to the mods\nReply `cancel` to cancel the reporting process"]
 
+
 	'''
 	This function applies the decision of the moderators to a message
 	'''
@@ -205,6 +209,15 @@ class Report:
 		self.mod_message = await mod_channel.send(str(self))
 		await self.hide_message()
 
+
+	'''
+	This function sends a new message to the mod channel.
+	'''
+	async def bump(self):
+		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
+		self.mod_message = await mod_channel.send(str(self))
+
+
 	'''
 	This function temporarily hides the reported message while it is under review
 	'''
@@ -212,19 +225,22 @@ class Report:
 		await self.reported_message.clear_reactions()
 		await self.reported_message.add_reaction(self.EMOJI_SHADOW)
 
+
 	'''
 	This method generate the priority score for the report
 	Since it needs the current time, it can't just be a member
 	'''
 	def get_priority(self):
-		age = datetime.now() - self.creation_time
+		age = (datetime.now() - self.creation_time).seconds
 		return age + self.severity
+
 
 	'''
 	A simple check to see if the report is done
 	'''
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE
+
 
 	'''
 	Having a built-in string method is nice for many reasons
@@ -235,3 +251,13 @@ class Report:
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"
 		return s
+
+
+	'''
+	Having these methods allows us to have a total ordering and get reports in order of priority
+	'''
+	def __eq__(self, other):
+		return self.get_priority() == other.get_priority()
+
+	def __lt__(self, other):
+		return self.get_priority() < other.get_priority()

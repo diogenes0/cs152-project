@@ -69,7 +69,7 @@ class ModBot(discord.Client):
 
         # If we don't currently have an active report for this user, add one
         if author_id not in self.reports:
-            self.reports[author_id] = Report(self)
+            self.reports[author_id] = Report(self, self.mod_channels)
 
         # Let the report class handle this message; forward all the messages it returns to uss
         responses = await self.reports[author_id].handle_message(message)
@@ -100,7 +100,7 @@ class ModBot(discord.Client):
         PERSPECTIVE_URL = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze'
 
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
-        data_dict = { 
+        data_dict = {
             'comment': {'text': message.content},
             'languages': ['en'],
             'requestedAttributes': {

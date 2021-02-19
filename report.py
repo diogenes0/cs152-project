@@ -18,20 +18,20 @@ class Report:
 
 	SPAM_KEYWORD = "spam"
 	FRAUD_KEYWORD = "fraud"
-	HATE_KEYWORD = "hate speech/harrasment"
+	HATE_KEYWORD = "hate speech/harassment"
 	VIOLENCE_KEYWORD = "violence"
 	INTIMATE_KEYWORD = "intimate materials"
 	OTHER_KEYWORD = "other"
 
 	TYPES = [SPAM_KEYWORD, FRAUD_KEYWORD, HATE_KEYWORD, VIOLENCE_KEYWORD, INTIMATE_KEYWORD, OTHER_KEYWORD]
 
-	def __init__(self, client):
+	def __init__(self, client, mod_channels):
 		self.state = State.REPORT_START
 		self.client = client
-		self.message = None
+		self.reporter = None
 		self.reported_message = None
 		self.comment = None
-		self.mod_channel = None
+		self.mod_channels = mod_channels
 
 	'''
 	This function makes up the meat of the user-side reporting flow. It defines how we transition between states and what
@@ -64,6 +64,7 @@ class Report:
 		reply += "Please copy paste the link to the message you want to report.\n"
 		reply += "You can obtain this link by right-clicking the message and clicking `Copy Message Link`."
 		self.state = State.AWAITING_MESSAGE
+		self.reporter = message.author
 		return [reply]
 
 
@@ -88,9 +89,9 @@ class Report:
 		# Here we've found the message - it's up to you to decide what to do next!
 		self.state = State.MESSAGE_IDENTIFIED
 		self.reported_message = message
-		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```", \
-				"If this is not the right message, type `cancel` and restart to reporting process.", \
-				"Otherwise, let me know which of the following abuse types this message is", \
+		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
+				"If this is not the right message, type `cancel` and restart to reporting process.\n" + \
+				"Otherwise, let me know which of the following abuse types this message is\n" + \
 				'`' + self.SPAM_KEYWORD + '`\n`' + self.FRAUD_KEYWORD + '`\n`' + \
 				self.HATE_KEYWORD + '`\n`' + self.VIOLENCE_KEYWORD + '`\n`' + \
 				self.INTIMATE_KEYWORD + '`\n`' + self.OTHER_KEYWORD + '`']
@@ -113,8 +114,7 @@ class Report:
 	async def confirm_report(self, message):
 		self.comment = message.content
 		reply =  "Alright, here's the report I'm sending to the mods\n"
-		reply += "`The following message was reported\n{}: {}`\n".format(self.reported_message.author.name, self.reported_message.content)
-		reply += "These comments are attached `{}`\n".format(self.comment)
+		reply += str(self) + "\n"
 		reply += "Reply `yes` to send this report to the mods\n"
 		reply += "Reply `cancel` to cancel the reporting process"
 		self.state = State.AWAITING_CONFIRMATION
@@ -126,10 +126,21 @@ class Report:
 	'''
 	async def send_report(self, message):
 		if message.content == self.CONFIRM_KEYWORD:
-			mod_channel = self.mod_channels[message.guild.id]
+			mod_channel = self.mod_channels[self.reported_message.guild.id]
+			await mod_channel.send(str(self))
 			return ["Your report has been sent to the mods"]
 		else:
 			return ["Reply `yes` to send this report to the mods\nReply `cancel` to cancel the reporting process"]
 
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE
+
+	'''
+	Having a built-in string method is nice for many reasons
+	'''
+	def __str__(self):
+		s =  "User `{}` reported the following message from user `{}`\n".format(self.reporter.name, self.reported_message.author.name)
+		s += "`{}`\n".format(self.reported_message.content)
+		s += "The following comments are attached:\n"
+		s += "`{}`".format(self.comment)
+		return s

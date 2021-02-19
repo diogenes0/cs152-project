@@ -1,6 +1,7 @@
 from enum import Enum, auto
 import discord
 import re
+from datetime import datetime
 
 class State(Enum):
 	REPORT_START = auto()
@@ -24,7 +25,21 @@ class Report:
 	INTIMATE_KEYWORD = "intimate materials"
 	OTHER_KEYWORD = "other"
 
-	X_EMOJI = "❌"
+	MOD_LAW = "law" 			# incident is reported to law enforcement
+	MOD_M_DEMOTE = "m_demote" 	# message is demoted in search
+	MOD_M_HIDE = "m_hide" 		# message is hidden on platform. No user can access it
+	MOD_M_SHADOW = "m_shadow"	# message is hidden from world. Available to poster
+	MOD_U_DEMOTE = "u_demote"	# user is demoted in search and recommendations
+	MOD_U_HIDE = "u_hide"		# user is hidden in search and recommendations
+	MOD_U_SHADOW = "u_shadow"	# user is shadowbanned. Nothing they do is visible to anyone but them
+	MOD_U_SUSPEND = "u_suspend"	# users is suspended from platform temporarily
+	MOD_U_BAN = "u_ban"			# user is banned from platform. account is deactivated
+	MOD_U_NONE = "none"			# no action is taken
+
+	EMOJI_LAW = "👮"
+	EMOJI_DEMOTE = "⬇"
+	EMOJI_HIDE = "🦝"
+	EMOJI_SHADOW = "👻"
 
 	TYPES = [SPAM_KEYWORD, FRAUD_KEYWORD, HATE_KEYWORD, VIOLENCE_KEYWORD, INTIMATE_KEYWORD, OTHER_KEYWORD]
 
@@ -36,6 +51,9 @@ class Report:
 		self.reported_message = None
 		self.comment = None
 		self.mod_message = None
+		self.creation_time = datetime.now()
+		self.severity = None
+
 
 	'''
 	This function makes up the meat of the user-side reporting flow. It defines how we transition between states and what
@@ -93,7 +111,10 @@ class Report:
 		# Here we've found the message - it's up to you to decide what to do next!
 		self.state = State.MESSAGE_IDENTIFIED
 		self.reported_message = message
-		if self.client.eval_text(self.reported_message):
+		eval = self.client.eval_text(message)
+		self.severity = eval[0]
+		self.type = eval[1]
+		if self.severity > self.client.threshold:
 			await self.hide_message()
 		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
 				"If this is not the right message, type `cancel` and restart to reporting process.\n" + \
@@ -143,8 +164,28 @@ class Report:
 	This function applies the decision of the moderators to a message
 	'''
 	async def moderate(self, message):
-		await reported_message.clear_reactions()
-		await reported_message.add_reaction(self.X_EMOJI)
+		await self.reported_message.clear_reactions()
+		m = message.content
+
+		if self.MOD_LAW in m:
+			await self.reported_message.add_reaction(self.EMOJI_LAW)
+		if self.MOD_M_DEMOTE in m:
+			await self.reported_message.add_reaction(self.EMOJI_DEMOTE)
+		if self.MOD_M_HIDE in m:
+			await self.reported_message.add_reaction(self.EMOJI_HIDE)
+		if self.MOD_M_SHADOW in m:
+			await self.reported_message.add_reaction(self.EMOJI_SHADOW)
+		if self.MOD_U_DEMOTE in m:
+			await self.reported_message.author.send("You have been demoted")
+		if self.MOD_U_HIDE in m:
+			await self.reported_message.author.send("You have been hidden")
+		if self.MOD_U_SHADOW in m:
+			await self.reported_message.author.send("You have been shadowbanned")
+		if self.MOD_U_SUSPEND in m:
+			await self.reported_message.author.send("You have been suspended")
+		if self.MOD_U_BAN in m:
+			await self.reported_message.author.send("You have been banned")
+
 		self.state = State.REPORT_COMPLETE
 
 
@@ -155,6 +196,11 @@ class Report:
 		self.reporter = self.client.user
 		self.reported_message = message
 		self.comment = "Automatically generated report"
+		self.state = State.AWAITING_MODERATION
+		eval = self.client.eval_text(message)
+		self.severity = eval[0]
+		self.type = eval[1]
+
 		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 		self.mod_message = await mod_channel.send(str(self))
 		await self.hide_message()
@@ -164,8 +210,19 @@ class Report:
 	'''
 	async def hide_message(self):
 		await self.reported_message.clear_reactions()
-		await self.reported_message.add_reaction(self.X_EMOJI) # TODO figure out emoji
+		await self.reported_message.add_reaction(self.EMOJI_SHADOW)
 
+	'''
+	This method generate the priority score for the report
+	Since it needs the current time, it can't just be a member
+	'''
+	def get_priority(self):
+		age = datetime.now() - self.creation_time
+		return age + self.severity
+
+	'''
+	A simple check to see if the report is done
+	'''
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE
 
@@ -173,7 +230,7 @@ class Report:
 	Having a built-in string method is nice for many reasons
 	'''
 	def __str__(self):
-		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as {self.type}\n"
+		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`\n"
 		s += f"`{self.reported_message.content}`\n"
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"

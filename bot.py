@@ -9,6 +9,7 @@ import requests
 from report import Report
 from unidecode import unidecode
 
+mod_help = "This is a message to help out the mods. Good luck!"
 
 class ModBot(discord.Client):
     def __init__(self, key):
@@ -18,6 +19,7 @@ class ModBot(discord.Client):
         self.mod_channels = {} # Map from guild to the mod channel id for that guild
         self.reports = [] # List of reports
         self.perspective_key = key
+        self.threshold = 0.5 # threshold to auto-hide a message
 
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
@@ -96,9 +98,11 @@ class ModBot(discord.Client):
         # Allow the bot to take input from the mods
         if message.channel.name == f'group-{self.group_num}-mod':
             for report in self.reports:
-                if message.reference == report.mod_message:
+                if message.reference.message_id == report.mod_message.id:
                     await report.moderate(message)
                     break
+            else:
+                await self.mod_channels[message.guild.id].send(mod_help)
             return
 
         # Don't handle messages not sent in the "group-#" channel
@@ -106,7 +110,7 @@ class ModBot(discord.Client):
             await self.moderate_message(message)
 
     async def moderate_message(self, message):
-        if self.eval_text(message):
+        if self.eval_text(message)[0] > self.threshold:
             report = Report(self, self.user)
             await report.automoderate(message)
             self.reports.append(report)
@@ -136,8 +140,8 @@ class ModBot(discord.Client):
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
 
         if "fuck" in unidecode(message.content):
-            return True
-        return False
+            return (1, Report.OTHER_KEYWORD)
+        return (0, Report.OTHER_KEYWORD)
 
     def code_format(self, text):
         return "```" + text + "```"

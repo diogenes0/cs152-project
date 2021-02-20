@@ -9,7 +9,7 @@ class State(Enum):
 	REPORT_START = auto()
 	AWAITING_MESSAGE = auto()
 	MESSAGE_IDENTIFIED = auto()
-	AWAITING_SUBCATEGORY = auto()
+	AWAITING_SUBTYPE = auto()
 	AWAITING_COMMENTS = auto()
 	AWAITING_CONFIRMATION = auto()
 	AWAITING_MODERATION = auto()
@@ -22,6 +22,7 @@ class Report:
 		self.state = State.REPORT_START
 		self.client = client
 		self.type = None
+		self.subtype = None
 		self.reporter = reporter
 		self.reported_message = None
 		self.comment = None
@@ -44,8 +45,8 @@ class Report:
 		elif self.state == State.AWAITING_MESSAGE:
 			return await self.read_message(message)
 		elif self.state == State.MESSAGE_IDENTIFIED:
-			return await self.get_subcategory(message)
-		elif self.state == State.AWAITING_SUBCATEGORY:
+			return await self.get_subtype(message)
+		elif self.state == State.AWAITING_SUBTYPE:
 			return await self.get_comments(message)
 		elif self.state == State.AWAITING_COMMENTS:
 			return await self.confirm_report(message)
@@ -101,25 +102,47 @@ class Report:
 				constants.HATE_KEYWORD + '`\n`' + constants.VIOLENCE_KEYWORD + '`\n`' + \
 				constants.INTIMATE_KEYWORD + '`\n`' + constants.OTHER_KEYWORD + '`']
 
+	def get_subtype_options(self):
+		subtypes = []
+		if self.type == constants.SPAM_KEYWORD:
+			subtypes = constants.SPAM_TYPES
+		elif self.type == constants.FRAUD_KEYWORD:
+			subtypes = constants.FRAUD_TYPES
+		elif self.type == constants.HATE_KEYWORD:
+			subtypes = constants.HATE_TYPES
+		elif self.type == constants.VIOLENCE_KEYWORD:
+			subtypes = constants.VIOLENCE_TYPES
+		elif self.type == constants.INTIMATE_KEYWORD:
+			subtypes = constants.INTIMATE_TYPES
+		else:
+			subtypes = constants.OTHER_TYPES
+		return subtypes
+
 	'''
-	This function asks the user for comments on their report
+	This function asks the user for the subtype of their report
 	'''
-	async def get_subcategory(self, message):
+	async def get_subtype(self, message):
 		if message.content not in constants.TYPES:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
 		self.type = message.content
-		self.state = State.AWAITING_SUBCATEGORY
-		return ["You've identified this messages as `" + self.type + "`\n"] #TODO: GIVE SUBTYPE CHOICES
+		self.state = State.AWAITING_SUBTYPE
+		id_msg = ["You've identified this messages as `" + self.type + "`\n"] 
 
+		subtype_solicitation = ["Let me know which of the following abuse subtypes this message is in\n"]
+		subtype_solicitation += ['`' + subtype_keyword + '`\n' for subtype_keyword in self.get_subtype_options()] #might not be the best
+
+		return id_msg + subtype_solicitation
 	'''
 	This function asks the user for comments on their report
 	'''
 	async def get_comments(self, message):
-		if message.content not in constants.TYPES:
+		subtypes = self.get_subtype_options()
+
+		if message.content not in subtypes:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
-		self.type = message.content
+		self.subtype = message.content
 		self.state = State.AWAITING_COMMENTS
-		return ["You've identified this messages as `" + self.type + "`\nAdd any comments you'd like to send to the mods."]
+		return ["You've further identified this messages as `" + self.subtype + "`\nAdd any comments you'd like to send to the mods."]
 
 
 	'''
@@ -230,7 +253,7 @@ class Report:
 	Having a built-in string method is nice for many reasons
 	'''
 	def __str__(self):
-		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`\n"
+		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
 		s += f"`{self.reported_message.content}`\n"
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"

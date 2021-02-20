@@ -128,8 +128,9 @@ class Report:
 		self.state = State.AWAITING_SUBTYPE
 		id_msg = ["You've identified this messages as `" + self.type + "`\n"] 
 
-		subtype_solicitation = ["Let me know which of the following abuse subtypes this message is in\n"]
-		subtype_solicitation += ['`' + subtype_keyword + '`\n' for subtype_keyword in self.get_subtype_options()] #might not be the best
+		subtype_solicitation = "Let me know which of the following abuse subtypes this message is in\n"
+		for subtype_keyword in self.get_subtype_options():
+			subtype_solicitation += '`' + subtype_keyword + '`\n'
 
 		return id_msg + subtype_solicitation
 	'''
@@ -178,23 +179,23 @@ class Report:
 		await self.reported_message.clear_reactions()
 		m = message.content
 
-		if self.MOD_LAW in m:
-			await self.reported_message.add_reaction(self.EMOJI_LAW)
-		if self.MOD_M_DEMOTE in m:
-			await self.reported_message.add_reaction(self.EMOJI_DEMOTE)
-		if self.MOD_M_HIDE in m:
-			await self.reported_message.add_reaction(self.EMOJI_HIDE)
-		if self.MOD_M_SHADOW in m:
-			await self.reported_message.add_reaction(self.EMOJI_SHADOW)
-		if self.MOD_U_DEMOTE in m:
+		if constants.MOD_LAW in m:
+			await self.reported_message.add_reaction(constants.EMOJI_LAW)
+		if constants.MOD_M_DEMOTE in m:
+			await self.reported_message.add_reaction(constants.EMOJI_DEMOTE)
+		if constants.MOD_M_HIDE in m:
+			await self.reported_message.add_reaction(constants.EMOJI_HIDE)
+		if constants.MOD_M_SHADOW in m:
+			await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
+		if constants.MOD_U_DEMOTE in m:
 			await self.reported_message.author.send("You have been demoted")
-		if self.MOD_U_HIDE in m:
+		if constants.MOD_U_HIDE in m:
 			await self.reported_message.author.send("You have been hidden")
-		if self.MOD_U_SHADOW in m:
+		if constants.MOD_U_SHADOW in m:
 			await self.reported_message.author.send("You have been shadowbanned")
-		if self.MOD_U_SUSPEND in m:
+		if constants.MOD_U_SUSPEND in m:
 			await self.reported_message.author.send("You have been suspended")
-		if self.MOD_U_BAN in m:
+		if constants.MOD_U_BAN in m:
 			await self.reported_message.author.send("You have been banned")
 
 		self.state = State.REPORT_COMPLETE
@@ -230,7 +231,7 @@ class Report:
 	'''
 	async def hide_message(self):
 		await self.reported_message.clear_reactions()
-		await self.reported_message.add_reaction(self.EMOJI_SHADOW)
+		await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
 
 
 	'''

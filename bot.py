@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import requests
+import constants
 from report import Report
 from unidecode import unidecode
 
@@ -87,7 +88,7 @@ class ModBot(discord.Client):
 
     async def handle_dm(self, message):
         # Handle a help message
-        if message.content == Report.HELP_KEYWORD:
+        if message.content == constants.HELP_KEYWORD:
             reply =  "Use the `report` command to begin the reporting process.\n"
             reply += "Use the `cancel` command to cancel the report process.\n"
             await message.channel.send(reply)
@@ -97,7 +98,7 @@ class ModBot(discord.Client):
         responses = []
 
         # Only respond to messages if they're part of a reporting flow
-        if author not in [report.reporter for report in self.reports] and not message.content.startswith(Report.START_KEYWORD):
+        if author not in [report.reporter for report in self.reports] and not message.content.startswith(constants.START_KEYWORD):
             return
 
         # If we don't currently have an active report for this user, add one
@@ -179,8 +180,8 @@ class ModBot(discord.Client):
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
 
         if "fuck" in unidecode(message.content):
-            return (1, Report.OTHER_KEYWORD)
-        return (0, Report.OTHER_KEYWORD)
+            return (1, constants.OTHER_KEYWORD)
+        return (0, constants.OTHER_KEYWORD)
 
     def code_format(self, text):
         return "```" + text + "```"

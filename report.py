@@ -3,11 +3,13 @@ import discord
 import re
 from datetime import datetime
 import functools
+import constants
 
 class State(Enum):
 	REPORT_START = auto()
 	AWAITING_MESSAGE = auto()
 	MESSAGE_IDENTIFIED = auto()
+	AWAITING_SUBTYPE = auto()
 	AWAITING_COMMENTS = auto()
 	AWAITING_CONFIRMATION = auto()
 	AWAITING_MODERATION = auto()
@@ -15,40 +17,12 @@ class State(Enum):
 
 @functools.total_ordering
 class Report:
-	START_KEYWORD = "report"
-	CANCEL_KEYWORD = "cancel"
-	HELP_KEYWORD = "help"
-	CONFIRM_KEYWORD = "yes"
-
-	SPAM_KEYWORD = "spam"
-	FRAUD_KEYWORD = "fraud"
-	HATE_KEYWORD = "hate speech/harassment"
-	VIOLENCE_KEYWORD = "violence"
-	INTIMATE_KEYWORD = "intimate materials"
-	OTHER_KEYWORD = "other"
-
-	MOD_LAW = "law" 			# incident is reported to law enforcement
-	MOD_M_DEMOTE = "m_demote" 	# message is demoted in search
-	MOD_M_HIDE = "m_hide" 		# message is hidden on platform. No user can access it
-	MOD_M_SHADOW = "m_shadow"	# message is hidden from world. Available to poster
-	MOD_U_DEMOTE = "u_demote"	# user is demoted in search and recommendations
-	MOD_U_HIDE = "u_hide"		# user is hidden in search and recommendations
-	MOD_U_SHADOW = "u_shadow"	# user is shadowbanned. Nothing they do is visible to anyone but them
-	MOD_U_SUSPEND = "u_suspend"	# users is suspended from platform temporarily
-	MOD_U_BAN = "u_ban"			# user is banned from platform. account is deactivated
-	MOD_U_NONE = "none"			# no action is taken
-
-	EMOJI_LAW = "👮"
-	EMOJI_DEMOTE = "⬇"
-	EMOJI_HIDE = "🦝"
-	EMOJI_SHADOW = "👻"
-
-	TYPES = [SPAM_KEYWORD, FRAUD_KEYWORD, HATE_KEYWORD, VIOLENCE_KEYWORD, INTIMATE_KEYWORD, OTHER_KEYWORD]
 
 	def __init__(self, client, reporter):
 		self.state = State.REPORT_START
 		self.client = client
 		self.type = None
+		self.subtype = None
 		self.reporter = reporter
 		self.reported_message = None
 		self.comment = None
@@ -63,7 +37,7 @@ class Report:
 	get you started and give you a model for working with Discord.
 	'''
 	async def handle_message(self, message):
-		if message.content == self.CANCEL_KEYWORD:
+		if message.content == constants.CANCEL_KEYWORD:
 			self.state = State.REPORT_COMPLETE
 			return ["Report cancelled."]
 		elif self.state == State.REPORT_START:
@@ -71,6 +45,8 @@ class Report:
 		elif self.state == State.AWAITING_MESSAGE:
 			return await self.read_message(message)
 		elif self.state == State.MESSAGE_IDENTIFIED:
+			return await self.get_subtype(message)
+		elif self.state == State.AWAITING_SUBTYPE:
 			return await self.get_comments(message)
 		elif self.state == State.AWAITING_COMMENTS:
 			return await self.confirm_report(message)
@@ -122,20 +98,52 @@ class Report:
 		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
 				"If this is not the right message, type `cancel` and restart to reporting process.\n" + \
 				"Otherwise, let me know which of the following abuse types this message is\n" + \
-				'`' + self.SPAM_KEYWORD + '`\n`' + self.FRAUD_KEYWORD + '`\n`' + \
-				self.HATE_KEYWORD + '`\n`' + self.VIOLENCE_KEYWORD + '`\n`' + \
-				self.INTIMATE_KEYWORD + '`\n`' + self.OTHER_KEYWORD + '`']
+				'`' + constants.SPAM_KEYWORD + '`\n`' + constants.FRAUD_KEYWORD + '`\n`' + \
+				constants.HATE_KEYWORD + '`\n`' + constants.VIOLENCE_KEYWORD + '`\n`' + \
+				constants.INTIMATE_KEYWORD + '`\n`' + constants.OTHER_KEYWORD + '`']
 
+	def get_subtype_options(self):
+		subtypes = []
+		if self.type == constants.SPAM_KEYWORD:
+			subtypes = constants.SPAM_TYPES
+		elif self.type == constants.FRAUD_KEYWORD:
+			subtypes = constants.FRAUD_TYPES
+		elif self.type == constants.HATE_KEYWORD:
+			subtypes = constants.HATE_TYPES
+		elif self.type == constants.VIOLENCE_KEYWORD:
+			subtypes = constants.VIOLENCE_TYPES
+		elif self.type == constants.INTIMATE_KEYWORD:
+			subtypes = constants.INTIMATE_TYPES
+		else:
+			subtypes = constants.OTHER_TYPES
+		return subtypes
 
+	'''
+	This function asks the user for the subtype of their report
+	'''
+	async def get_subtype(self, message):
+		if message.content not in constants.TYPES:
+			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
+		self.type = message.content
+		self.state = State.AWAITING_SUBTYPE
+		id_msg = ["You've identified this messages as `" + self.type + "`\n"] 
+
+		subtype_solicitation = "Let me know which of the following abuse subtypes this message is in\n"
+		for subtype_keyword in self.get_subtype_options():
+			subtype_solicitation += '`' + subtype_keyword + '`\n'
+
+		return id_msg + subtype_solicitation
 	'''
 	This function asks the user for comments on their report
 	'''
 	async def get_comments(self, message):
-		if message.content not in self.TYPES:
+		subtypes = self.get_subtype_options()
+
+		if message.content not in subtypes:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
-		self.type = message.content
+		self.subtype = message.content
 		self.state = State.AWAITING_COMMENTS
-		return ["You've identified this messages as `" + self.type + "`\nAdd any comments you'd like to send to the mods."]
+		return ["You've further identified this messages as `" + self.subtype + "`\nAdd any comments you'd like to send to the mods."]
 
 
 	'''
@@ -155,7 +163,7 @@ class Report:
 	This function sends the report to the mod channel and informs the user
 	'''
 	async def send_report(self, message):
-		if message.content == self.CONFIRM_KEYWORD:
+		if message.content == constants.CONFIRM_KEYWORD:
 			mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 			self.mod_message = await mod_channel.send("New report arrived")
 			self.state = State.AWAITING_MODERATION
@@ -171,23 +179,23 @@ class Report:
 		await self.reported_message.clear_reactions()
 		m = message.content
 
-		if self.MOD_LAW in m:
-			await self.reported_message.add_reaction(self.EMOJI_LAW)
-		if self.MOD_M_DEMOTE in m:
-			await self.reported_message.add_reaction(self.EMOJI_DEMOTE)
-		if self.MOD_M_HIDE in m:
-			await self.reported_message.add_reaction(self.EMOJI_HIDE)
-		if self.MOD_M_SHADOW in m:
-			await self.reported_message.add_reaction(self.EMOJI_SHADOW)
-		if self.MOD_U_DEMOTE in m:
+		if constants.MOD_LAW in m:
+			await self.reported_message.add_reaction(constants.EMOJI_LAW)
+		if constants.MOD_M_DEMOTE in m:
+			await self.reported_message.add_reaction(constants.EMOJI_DEMOTE)
+		if constants.MOD_M_HIDE in m:
+			await self.reported_message.add_reaction(constants.EMOJI_HIDE)
+		if constants.MOD_M_SHADOW in m:
+			await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
+		if constants.MOD_U_DEMOTE in m:
 			await self.reported_message.author.send("You have been demoted")
-		if self.MOD_U_HIDE in m:
+		if constants.MOD_U_HIDE in m:
 			await self.reported_message.author.send("You have been hidden")
-		if self.MOD_U_SHADOW in m:
+		if constants.MOD_U_SHADOW in m:
 			await self.reported_message.author.send("You have been shadowbanned")
-		if self.MOD_U_SUSPEND in m:
+		if constants.MOD_U_SUSPEND in m:
 			await self.reported_message.author.send("You have been suspended")
-		if self.MOD_U_BAN in m:
+		if constants.MOD_U_BAN in m:
 			await self.reported_message.author.send("You have been banned")
 
 		self.state = State.REPORT_COMPLETE
@@ -223,7 +231,7 @@ class Report:
 	'''
 	async def hide_message(self):
 		await self.reported_message.clear_reactions()
-		await self.reported_message.add_reaction(self.EMOJI_SHADOW)
+		await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
 
 
 	'''
@@ -246,7 +254,7 @@ class Report:
 	Having a built-in string method is nice for many reasons
 	'''
 	def __str__(self):
-		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`\n"
+		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
 		s += f"`{self.reported_message.content}`\n"
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"

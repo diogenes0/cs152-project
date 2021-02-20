@@ -10,6 +10,7 @@ import constants
 from report import Report
 from unidecode import unidecode
 
+
 def make_mod_help():
     mod_help =  "Type `next` to see the next report\n"
     mod_help += "Type `help` to see this message\n"
@@ -25,6 +26,8 @@ def make_mod_help():
     mod_help += "`u_suspend`  users is suspended from platform temporarily\n"
     mod_help += "`u_ban`      user is banned from platform. account is deactivated\n"
     mod_help += "`none`       no action is taken\n"
+    return mod_help
+
 
 class ModBot(discord.Client):
     def __init__(self, key):
@@ -36,6 +39,7 @@ class ModBot(discord.Client):
         self.perspective_key = key
         self.threshold = 0.5 # threshold to auto-hide a message
         self.mod_help = make_mod_help() # makes mod help message
+
 
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
@@ -113,7 +117,6 @@ class ModBot(discord.Client):
         # If the report is complete or cancelled, remove it from our map
         if self.reports[report_index].report_complete():
             self.reports.pop(report_index)
-
 
     async def handle_mod_message(self, message):
         # remove completed reports

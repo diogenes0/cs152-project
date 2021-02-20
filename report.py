@@ -3,11 +3,13 @@ import discord
 import re
 from datetime import datetime
 import functools
+import constants
 
 class State(Enum):
 	REPORT_START = auto()
 	AWAITING_MESSAGE = auto()
 	MESSAGE_IDENTIFIED = auto()
+	AWAITING_SUBCATEGORY = auto()
 	AWAITING_COMMENTS = auto()
 	AWAITING_CONFIRMATION = auto()
 	AWAITING_MODERATION = auto()
@@ -15,35 +17,6 @@ class State(Enum):
 
 @functools.total_ordering
 class Report:
-	START_KEYWORD = "report"
-	CANCEL_KEYWORD = "cancel"
-	HELP_KEYWORD = "help"
-	CONFIRM_KEYWORD = "yes"
-
-	SPAM_KEYWORD = "spam"
-	FRAUD_KEYWORD = "fraud"
-	HATE_KEYWORD = "hate speech/harassment"
-	VIOLENCE_KEYWORD = "violence"
-	INTIMATE_KEYWORD = "intimate materials"
-	OTHER_KEYWORD = "other"
-
-	MOD_LAW = "law" 			# incident is reported to law enforcement
-	MOD_M_DEMOTE = "m_demote" 	# message is demoted in search
-	MOD_M_HIDE = "m_hide" 		# message is hidden on platform. No user can access it
-	MOD_M_SHADOW = "m_shadow"	# message is hidden from world. Available to poster
-	MOD_U_DEMOTE = "u_demote"	# user is demoted in search and recommendations
-	MOD_U_HIDE = "u_hide"		# user is hidden in search and recommendations
-	MOD_U_SHADOW = "u_shadow"	# user is shadowbanned. Nothing they do is visible to anyone but them
-	MOD_U_SUSPEND = "u_suspend"	# users is suspended from platform temporarily
-	MOD_U_BAN = "u_ban"			# user is banned from platform. account is deactivated
-	MOD_U_NONE = "none"			# no action is taken
-
-	EMOJI_LAW = "👮"
-	EMOJI_DEMOTE = "⬇"
-	EMOJI_HIDE = "🦝"
-	EMOJI_SHADOW = "👻"
-
-	TYPES = [SPAM_KEYWORD, FRAUD_KEYWORD, HATE_KEYWORD, VIOLENCE_KEYWORD, INTIMATE_KEYWORD, OTHER_KEYWORD]
 
 	def __init__(self, client, reporter):
 		self.state = State.REPORT_START
@@ -63,7 +36,7 @@ class Report:
 	get you started and give you a model for working with Discord.
 	'''
 	async def handle_message(self, message):
-		if message.content == self.CANCEL_KEYWORD:
+		if message.content == constants.CANCEL_KEYWORD:
 			self.state = State.REPORT_COMPLETE
 			return ["Report cancelled."]
 		elif self.state == State.REPORT_START:
@@ -71,6 +44,8 @@ class Report:
 		elif self.state == State.AWAITING_MESSAGE:
 			return await self.read_message(message)
 		elif self.state == State.MESSAGE_IDENTIFIED:
+			return await self.get_subcategory(message)
+		elif self.state == State.AWAITING_SUBCATEGORY:
 			return await self.get_comments(message)
 		elif self.state == State.AWAITING_COMMENTS:
 			return await self.confirm_report(message)
@@ -122,16 +97,25 @@ class Report:
 		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
 				"If this is not the right message, type `cancel` and restart to reporting process.\n" + \
 				"Otherwise, let me know which of the following abuse types this message is\n" + \
-				'`' + self.SPAM_KEYWORD + '`\n`' + self.FRAUD_KEYWORD + '`\n`' + \
-				self.HATE_KEYWORD + '`\n`' + self.VIOLENCE_KEYWORD + '`\n`' + \
-				self.INTIMATE_KEYWORD + '`\n`' + self.OTHER_KEYWORD + '`']
+				'`' + constants.SPAM_KEYWORD + '`\n`' + constants.FRAUD_KEYWORD + '`\n`' + \
+				constants.HATE_KEYWORD + '`\n`' + constants.VIOLENCE_KEYWORD + '`\n`' + \
+				constants.INTIMATE_KEYWORD + '`\n`' + constants.OTHER_KEYWORD + '`']
 
+	'''
+	This function asks the user for comments on their report
+	'''
+	async def get_subcategory(self, message):
+		if message.content not in constants.TYPES:
+			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
+		self.type = message.content
+		self.state = State.AWAITING_SUBCATEGORY
+		return ["You've identified this messages as `" + self.type + "`\n"] #TODO: GIVE SUBTYPE CHOICES
 
 	'''
 	This function asks the user for comments on their report
 	'''
 	async def get_comments(self, message):
-		if message.content not in self.TYPES:
+		if message.content not in constants.TYPES:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
 		self.type = message.content
 		self.state = State.AWAITING_COMMENTS
@@ -155,7 +139,7 @@ class Report:
 	This function sends the report to the mod channel and informs the user
 	'''
 	async def send_report(self, message):
-		if message.content == self.CONFIRM_KEYWORD:
+		if message.content == constants.CONFIRM_KEYWORD:
 			mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 			self.mod_message = await mod_channel.send("New report arrived")
 			self.state = State.AWAITING_MODERATION

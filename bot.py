@@ -39,7 +39,6 @@ class ModBot(discord.Client):
         self.threshold = 0.5 # threshold to auto-hide a message
         self.mod_help = make_mod_help() # makes mod help message
 
-
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
         for guild in self.guilds:
@@ -58,6 +57,11 @@ class ModBot(discord.Client):
             for channel in guild.text_channels:
                 if channel.name == f'group-{self.group_num}-mod':
                     self.mod_channels[guild.id] = channel
+
+        for channel in self.mod_channels.values():
+            if channel.name == f"group-{self.group_num}-mod":
+                await channel.send("Beep boop. The bot starting.\n" + self.mod_help)
+                break
 
     async def on_message(self, message):
         '''

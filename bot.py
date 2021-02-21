@@ -177,7 +177,7 @@ class ModBot(discord.Client):
 
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
         data_dict = {
-            'comment': {'text': message.content},
+            'comment': {'text': unidecode(message.content)},
             'languages': ['en'],
             'requestedAttributes': {
                 'SEVERE_TOXICITY': {}, 'PROFANITY': {},

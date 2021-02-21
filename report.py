@@ -265,7 +265,7 @@ class Report:
 	def __str__(self):
 		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
 		s += f"`{self.reported_message.content}`\n"
-		s += f"Rated at severity {self.severity}\n"
+		s += f"Rated at severity {round(self.severity, 2)}\n"
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"
 		return s

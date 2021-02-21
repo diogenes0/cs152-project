@@ -194,14 +194,14 @@ class ModBot(discord.Client):
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
         print("message: ", message.content)
         print("scores: ", scores)
-        #if "fuck" in unidecode(message.content):
-        #    return (1, constants.OTHER_KEYWORD)
+        # if "fuck" in unidecode(message.content):
+        #     return (1, constants.OTHER_KEYWORD)
 
         score_list = [score for attr, score in scores.items()]
-        max_pos_variaton = max(max(score_list) - 0.5, 0) #highest variation above average
-        score = max(mean(score_list) + max_pos_variaton / len(score_list), 0) #average score + penalty for above average score, floored @ 0
-        print("score: ", score)
-        return (score, constants.AUTO_KEYWORD, constants.AUTO_KEYWORD)
+        max_pos_variation = max(max(score_list) - 0.5, 0)  # highest variation above average
+        score = max(mean(score_list) + max_pos_variation / len(score_list), 0)  # average score + penalty for above average score, floored @ 0
+        print("score: ", round(score, 2))
+        return score, constants.AUTO_KEYWORD, constants.AUTO_KEYWORD
 
     def code_format(self, text):
         return "```" + text + "```"

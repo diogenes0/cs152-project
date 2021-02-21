@@ -250,7 +250,7 @@ class Report:
 	'''
 	def get_priority(self):
 		reports = [report for report in self.client.reports if report.reported_message.id == self.reported_message.id]
-		age = (datetime.now() - self.creation_time).seconds
+		age = (datetime.now() - self.creation_time).total_seconds() / 3600  # Hours since report creation
 		return (age + self.severity) * len(reports)
 
 	'''

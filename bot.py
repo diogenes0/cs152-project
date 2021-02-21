@@ -150,7 +150,8 @@ class ModBot(discord.Client):
         if message.content == "next":
             if not self.reports:
                 return await message.channel.send("There are no reports to moderate")
-            self.reports.sort(reverse=True)
+            # self.reports.sort(reverse=True, key=Report.get_priority)
+            self.reports = sorted(self.reports, reverse=True, key=Report.get_priority)
             print(["Msg: " + report.reported_message.content + ", Pri: " + str(report.get_priority()) for report in self.reports])
             [await rep.bump() for rep in self.reports if rep.reported_message.id == self.reports[0].reported_message.id]
 

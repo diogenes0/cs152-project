@@ -40,7 +40,7 @@ class ModBot(discord.Client):
         self.mod_channels = {}  # Map from guild to the mod channel id for that guild
         self.reports = []  # List of reports
         self.perspective_key = key
-        self.threshold = 0.75  # threshold to auto-hide a message
+        self.threshold = 0.85  # threshold to auto-hide a message
         self.mod_help = make_mod_help()  # makes mod help message
         self.completed_reports = []
 
@@ -165,7 +165,7 @@ class ModBot(discord.Client):
             await self.moderate_message(message)
 
     async def moderate_message(self, message):
-        if self.eval_text(message)[0] > self.threshold:
+        if self.eval_text(message)[0] >= self.threshold:
             report = Report(self, self.user)
             await report.automoderate(message)
             self.reports.append(report)
@@ -194,7 +194,7 @@ class ModBot(discord.Client):
         for attr in response_dict["attributeScores"]:
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
         print("message: ", message.content)
-        print("scores: ", scores)
+        #print("scores: ", scores)
         # if "fuck" in unidecode(message.content):
         #     return (1, constants.OTHER_KEYWORD)
 

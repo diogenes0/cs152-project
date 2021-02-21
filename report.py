@@ -66,6 +66,7 @@ class Report:
 		reply =  "Thank you for starting the reporting process. "
 		reply += "Say `help` at any time for more information.\n\n"
 		reply += "Please copy paste the link to the message you want to report.\n"
+		reply += "If you want to report a user, paste a link to one of their messages.\n"
 		reply += "You can obtain this link by right-clicking the message and clicking `Copy Message Link`."
 		self.state = State.AWAITING_MESSAGE
 		return [reply]

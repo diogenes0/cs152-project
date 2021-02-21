@@ -251,7 +251,7 @@ class Report:
 	def get_priority(self):
 		reports = [report for report in self.client.reports if report.reported_message.id == self.reported_message.id]
 		age = (datetime.now() - self.creation_time).seconds
-		return age + self.severity
+		return (age + self.severity) * len(reports)
 
 	'''
 	A simple check to see if the report is done

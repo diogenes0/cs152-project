@@ -151,6 +151,7 @@ class ModBot(discord.Client):
             if not self.reports:
                 return await message.channel.send("There are no reports to moderate")
             self.reports.sort(reverse=True)
+            print(["Msg: " + report.reported_message.content + ", Pri: " + str(report.get_priority()) for report in self.reports])
             [await rep.bump() for rep in self.reports if rep.reported_message.id == self.reports[0].reported_message.id]
 
     async def handle_channel_message(self, message):
@@ -163,7 +164,7 @@ class ModBot(discord.Client):
             await self.moderate_message(message)
 
     async def moderate_message(self, message):
-        if self.eval_text(message)[0] > self.automod_threshold:
+        if self.eval_text(message)[0] > self.threshold:
             report = Report(self, self.user)
             await report.automoderate(message)
             self.reports.append(report)

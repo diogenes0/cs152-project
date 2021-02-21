@@ -8,11 +8,12 @@ import re
 import requests
 import constants
 from report import Report
+from report import State
 from unidecode import unidecode
 
 
 def make_mod_help():
-    mod_help =  "Type `next` to see the next report\n"
+    mod_help = "Type `next` to see the next report\n"
     mod_help += "Type `help` to see this message\n"
     mod_help += "Reply directly to a report to moderate it\n"
     mod_help += "Here are your options moderating a report\n"
@@ -30,15 +31,17 @@ def make_mod_help():
 
 
 class ModBot(discord.Client):
-    def __init__(self, key):
+    def __init__(self, key, data_path):
+        self.data_path = data_path
         intents = discord.Intents.default()
         super().__init__(command_prefix='.', intents=intents)
         self.group_num = None
-        self.mod_channels = {} # Map from guild to the mod channel id for that guild
-        self.reports = [] # List of reports
+        self.mod_channels = {}  # Map from guild to the mod channel id for that guild
+        self.reports = []  # List of reports
         self.perspective_key = key
-        self.threshold = 0.5 # threshold to auto-hide a message
-        self.mod_help = make_mod_help() # makes mod help message
+        self.threshold = 0.5  # threshold to auto-hide a message
+        self.mod_help = make_mod_help()  # makes mod help message
+        self.completed_reports = []
 
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
@@ -89,7 +92,7 @@ class ModBot(discord.Client):
     async def handle_dm(self, message):
         # Handle a help message
         if message.content == constants.HELP_KEYWORD:
-            reply =  "Use the `report` command to begin the reporting process.\n"
+            reply = "Use the `report` command to begin the reporting process.\n"
             reply += "Use the `cancel` command to cancel the report process.\n"
             await message.channel.send(reply)
             return
@@ -97,19 +100,24 @@ class ModBot(discord.Client):
         author = message.author
         responses = []
 
+        if message.content.startswith(constants.START_KEYWORD):
+            if [report for report in self.reports if (report.reporter.id == author.id and report.state != State.AWAITING_MODERATION)]:
+                return [f"Please send `{constants.CANCEL_KEYWORD}` to finish you current report before starting a new one."]
+
         # Only respond to messages if they're part of a reporting flow
-        if author not in [report.reporter for report in self.reports] and not message.content.startswith(constants.START_KEYWORD):
+        if author not in [report.reporter for report in self.reports] and not message.content.startswith(
+                constants.START_KEYWORD):
             return
 
         # If we don't currently have an active report for this user, add one
-        if author not in [report.reporter for report in self.reports]:
+        if author not in [report.reporter for report in self.reports if report.state != State.AWAITING_MODERATION]:
             self.reports.append(Report(self, author))
 
         # Finds the report belonging to author
         # Note that each client can only have one report
         report_index = None
         for i in range(len(self.reports)):
-            if self.reports[i].reporter == author:
+            if self.reports[i].reporter == author and self.reports[i].state != State.AWAITING_MODERATION:
                 report_index = i
                 break
 
@@ -120,16 +128,20 @@ class ModBot(discord.Client):
 
         # If the report is complete or cancelled, remove it from our map
         if self.reports[report_index].report_complete():
+            self.completed_reports.append(self.reports[report_index])
             self.reports.pop(report_index)
 
     async def handle_mod_message(self, message):
         # remove completed reports
+        for report in self.reports:
+            if report.report_complete():
+                self.completed_reports.append(report)
         self.reports = [report for report in self.reports if not report.report_complete()]
 
         if message.content == "help":
             return await message.channel.send(self.mod_help)
 
-        if message.reference != None:
+        if message.reference:
             for report in self.reports:
                 if message.reference.message_id == report.mod_message.id:
                     return await report.moderate(message)
@@ -138,7 +150,7 @@ class ModBot(discord.Client):
             if not self.reports:
                 return await message.channel.send("There are no reports to moderate")
             self.reports.sort(reverse=True)
-            return await self.reports[0].bump()
+            [await rep.bump() for rep in self.reports if rep.reported_message.id == self.reports[0].reported_message.id]
 
     async def handle_channel_message(self, message):
         # Allow the bot to take input from the mods
@@ -166,10 +178,10 @@ class ModBot(discord.Client):
             'comment': {'text': message.content},
             'languages': ['en'],
             'requestedAttributes': {
-                                    'SEVERE_TOXICITY': {}, 'PROFANITY': {},
-                                    'IDENTITY_ATTACK': {}, 'THREAT': {},
-                                    'TOXICITY': {}, 'FLIRTATION': {}
-                                },
+                'SEVERE_TOXICITY': {}, 'PROFANITY': {},
+                'IDENTITY_ATTACK': {}, 'THREAT': {},
+                'TOXICITY': {}, 'FLIRTATION': {}
+            },
             'doNotStore': True
         }
         response = requests.post(url, data=json.dumps(data_dict))
@@ -192,27 +204,27 @@ class ModBot(discord.Client):
 
 
 def main():
-	# Set up logging to the console
-	logger = logging.getLogger('discord')
-	logger.setLevel(logging.DEBUG)
-	handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
-	handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-	logger.addHandler(handler)
+    # Set up logging to the console
+    logger = logging.getLogger('discord')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    logger.addHandler(handler)
 
-	# There should be a file called 'token.json' inside the same folder as this file
-	token_path = 'tokens.json'
-	if not os.path.isfile(token_path):
-	    raise Exception(f"{token_path} not found!")
-	with open(token_path) as f:
-	    # If you get an error here, it means your token is formatted incorrectly. Did you put it in quotes?
-	    tokens = json.load(f)
-	    discord_token = tokens['discord']
-	    perspective_key = tokens['perspective']
+    # There should be a file called 'token.json' inside the same folder as this file
+    token_path = 'tokens.json'
+    if not os.path.isfile(token_path):
+        raise Exception(f"{token_path} not found!")
+    with open(token_path) as f:
+        # If you get an error here, it means your token is formatted incorrectly. Did you put it in quotes?
+        tokens = json.load(f)
+        discord_token = tokens['discord']
+        perspective_key = tokens['perspective']
 
-	# Create and run bot
-	client = ModBot(perspective_key)
-	client.run(discord_token)
+    # Create and run bot
+    client = ModBot(perspective_key, "data.json")
+    client.run(discord_token)
 
 
 if __name__ == "__main__":
-	main()
+    main()

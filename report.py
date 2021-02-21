@@ -2,8 +2,9 @@ from enum import Enum, auto
 import discord
 import re
 from datetime import datetime
-import functools
+from functools import total_ordering
 import constants
+
 
 class State(Enum):
 	REPORT_START = auto()
@@ -15,7 +16,8 @@ class State(Enum):
 	AWAITING_MODERATION = auto()
 	REPORT_COMPLETE = auto()
 
-@functools.total_ordering
+
+@total_ordering
 class Report:
 
 	def __init__(self, client, reporter):
@@ -29,6 +31,7 @@ class Report:
 		self.mod_message = None
 		self.creation_time = datetime.now()
 		self.severity = None
+		self.actions = []
 
 
 	'''
@@ -126,13 +129,13 @@ class Report:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
 		self.type = message.content
 		self.state = State.AWAITING_SUBTYPE
-		id_msg = ["You've identified this messages as `" + self.type + "`\n"] 
+		id_msg = "You've identified this messages as `" + self.type + "`\n"
 
 		subtype_solicitation = "Let me know which of the following abuse subtypes this message is in\n"
 		for subtype_keyword in self.get_subtype_options():
 			subtype_solicitation += '`' + subtype_keyword + '`\n'
 
-		return id_msg + subtype_solicitation
+		return [id_msg + subtype_solicitation]
 	'''
 	This function asks the user for comments on their report
 	'''
@@ -144,7 +147,6 @@ class Report:
 		self.subtype = message.content
 		self.state = State.AWAITING_COMMENTS
 		return ["You've further identified this messages as `" + self.subtype + "`\nAdd any comments you'd like to send to the mods."]
-
 
 	'''
 	This function prints the report back to the user
@@ -158,7 +160,6 @@ class Report:
 		self.state = State.AWAITING_CONFIRMATION
 		return [ reply ]
 
-
 	'''
 	This function sends the report to the mod channel and informs the user
 	'''
@@ -171,7 +172,6 @@ class Report:
 		else:
 			return ["Reply `yes` to send this report to the mods\nReply `cancel` to cancel the reporting process"]
 
-
 	'''
 	This function applies the decision of the moderators to a message
 	'''
@@ -180,26 +180,36 @@ class Report:
 		m = message.content
 
 		if constants.MOD_LAW in m:
+			self.actions.append(constants.MOD_LAW)
 			await self.reported_message.add_reaction(constants.EMOJI_LAW)
 		if constants.MOD_M_DEMOTE in m:
+			self.actions.append(constants.MOD_M_DEMOTE)
 			await self.reported_message.add_reaction(constants.EMOJI_DEMOTE)
 		if constants.MOD_M_HIDE in m:
+			self.actions.append(constants.MOD_M_HIDE)
 			await self.reported_message.add_reaction(constants.EMOJI_HIDE)
 		if constants.MOD_M_SHADOW in m:
+			self.actions.append(constants.MOD_M_SHADOW)
 			await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
 		if constants.MOD_U_DEMOTE in m:
+			self.actions.append(constants.MOD_U_DEMOTE)
 			await self.reported_message.author.send("You have been demoted")
 		if constants.MOD_U_HIDE in m:
+			self.actions.append(constants.MOD_U_HIDE)
 			await self.reported_message.author.send("You have been hidden")
 		if constants.MOD_U_SHADOW in m:
+			self.actions.append(constants.MOD_U_SHADOW)
 			await self.reported_message.author.send("You have been shadowbanned")
 		if constants.MOD_U_SUSPEND in m:
+			self.actions.append(constants.MOD_U_SUSPEND)
 			await self.reported_message.author.send("You have been suspended")
 		if constants.MOD_U_BAN in m:
+			self.actions.append(constants.MOD_U_BAN)
 			await self.reported_message.author.send("You have been banned")
 
-		self.state = State.REPORT_COMPLETE
-
+		for report in self.client.reports:
+			if report.reported_message.id == self.reported_message.id:
+				report.state = State.REPORT_COMPLETE
 
 	'''
 	This function is called when a message is automatically flagged as severe enough to warrant automoderation
@@ -217,14 +227,12 @@ class Report:
 		self.mod_message = await mod_channel.send("New report arrived")
 		await self.hide_message()
 
-
 	'''
 	This function sends a new message to the mod channel.
 	'''
 	async def bump(self):
 		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 		self.mod_message = await mod_channel.send(str(self))
-
 
 	'''
 	This function temporarily hides the reported message while it is under review
@@ -233,22 +241,20 @@ class Report:
 		await self.reported_message.clear_reactions()
 		await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
 
-
 	'''
 	This method generate the priority score for the report
 	Since it needs the current time, it can't just be a member
 	'''
 	def get_priority(self):
+		reports = [report for report in self.client.reports if report.reported_message.id == self.reported_message.id]
 		age = (datetime.now() - self.creation_time).seconds
 		return age + self.severity
-
 
 	'''
 	A simple check to see if the report is done
 	'''
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE
-
 
 	'''
 	Having a built-in string method is nice for many reasons
@@ -259,7 +265,6 @@ class Report:
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"
 		return s
-
 
 	'''
 	Having these methods allows us to have a total ordering and get reports in order of priority

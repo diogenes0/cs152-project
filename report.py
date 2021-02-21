@@ -30,7 +30,7 @@ class Report:
 		self.comment = None
 		self.mod_message = None
 		self.creation_time = datetime.now()
-		self.severity = None
+		self.severity = 0
 		self.actions = []
 
 
@@ -97,6 +97,7 @@ class Report:
 		eval = self.client.eval_text(message)
 		self.severity = eval[0]
 		self.type = eval[1]
+		self.type = eval[2]
 		if self.severity > self.client.threshold:
 			await self.hide_message()
 		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
@@ -223,6 +224,7 @@ class Report:
 		eval = self.client.eval_text(message)
 		self.severity = eval[0]
 		self.type = eval[1]
+		self.subtype = eval[2]
 
 		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 		self.mod_message = await mod_channel.send("New report arrived")
@@ -263,6 +265,7 @@ class Report:
 	def __str__(self):
 		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
 		s += f"`{self.reported_message.content}`\n"
+		s += f"Rated at severity {self.severity}\n"
 		s += f"The following comments are attached:\n"
 		s += f"`{self.comment}`"
 		return s

@@ -39,6 +39,8 @@ O_THEFT_KEYWORD = "theft"
 O_VANDALISM_KEYWORD = "vandalism"
 O_OTHER_KEYWORD = "other"
 
+AUTO_KEYWORD = "auto moderated"
+
 MOD_LAW = "law" 			# incident is reported to law enforcement
 MOD_M_DEMOTE = "m_demote" 	# message is demoted in search
 MOD_M_HIDE = "m_hide" 		# message is hidden on platform. No user can access it

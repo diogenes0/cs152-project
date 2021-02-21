@@ -7,6 +7,7 @@ import logging
 import re
 import requests
 import constants
+from statistics import mean
 from report import Report
 from report import State
 from unidecode import unidecode
@@ -39,7 +40,7 @@ class ModBot(discord.Client):
         self.mod_channels = {}  # Map from guild to the mod channel id for that guild
         self.reports = []  # List of reports
         self.perspective_key = key
-        self.threshold = 0.5  # threshold to auto-hide a message
+        self.threshold = 0.75  # threshold to auto-hide a message
         self.mod_help = make_mod_help()  # makes mod help message
         self.completed_reports = []
 
@@ -162,7 +163,7 @@ class ModBot(discord.Client):
             await self.moderate_message(message)
 
     async def moderate_message(self, message):
-        if self.eval_text(message)[0] > self.threshold:
+        if self.eval_text(message)[0] > self.automod_threshold:
             report = Report(self, self.user)
             await report.automoderate(message)
             self.reports.append(report)
@@ -190,10 +191,16 @@ class ModBot(discord.Client):
         scores = {}
         for attr in response_dict["attributeScores"]:
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
+        print("message: ", message.content)
+        print("scores: ", scores)
+        #if "fuck" in unidecode(message.content):
+        #    return (1, constants.OTHER_KEYWORD)
 
-        if "fuck" in unidecode(message.content):
-            return (1, constants.OTHER_KEYWORD)
-        return (0, constants.OTHER_KEYWORD)
+        score_list = [score for attr, score in scores.items()]
+        max_pos_variaton = max(max(score_list) - 0.5, 0) #highest variation above average
+        score = max(mean(score_list) + max_pos_variaton / len(score_list), 0) #average score + penalty for above average score, floored @ 0
+        print("score: ", score)
+        return (score, constants.AUTO_KEYWORD, constants.AUTO_KEYWORD)
 
     def code_format(self, text):
         return "```" + text + "```"

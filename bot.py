@@ -150,7 +150,6 @@ class ModBot(discord.Client):
         if message.content == "next":
             if not self.reports:
                 return await message.channel.send("There are no reports to moderate")
-            # self.reports.sort(reverse=True, key=Report.get_priority)
             self.reports = sorted(self.reports, reverse=True, key=Report.get_priority)
             print(["Msg: " + report.reported_message.content + ", Pri: " + str(report.get_priority()) for report in self.reports])
             [await rep.bump() for rep in self.reports if rep.reported_message.id == self.reports[0].reported_message.id]
@@ -194,9 +193,6 @@ class ModBot(discord.Client):
         for attr in response_dict["attributeScores"]:
             scores[attr] = response_dict["attributeScores"][attr]["summaryScore"]["value"]
         print("message: ", message.content)
-        #print("scores: ", scores)
-        # if "fuck" in unidecode(message.content):
-        #     return (1, constants.OTHER_KEYWORD)
 
         score_list = [score for attr, score in scores.items()]
         max_pos_variation = max(max(score_list) - 0.5, 0)  # highest variation above average

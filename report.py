@@ -100,15 +100,22 @@ class Report:
 		self.type = eval[2]
 		if self.severity > self.client.threshold:
 			await self.hide_message()
-		return ["I found this message:", "```" + message.author.name + ": " + message.content + "```\n" + \
-				"If this is not the right message, type `cancel` and restart to reporting process.\n" + \
-				"Otherwise, let me know which of the following abuse types this message is\n" + \
-				'`' + constants.SPAM_KEYWORD + '`\n`' + constants.FRAUD_KEYWORD + '`\n`' + \
-				constants.HATE_KEYWORD + '`\n`' + constants.VIOLENCE_KEYWORD + '`\n`' + \
-				constants.INTIMATE_KEYWORD + '`\n`' + constants.OTHER_KEYWORD + '`']
+
+		reply = f"I found this message: ```{message.author.name}: {message.content}```\n"
+		reply += "If this is not the right message, type `cancel` and restart to reporting process.\n"
+		reply += "Otherwise, let me know which of the following abuse types this message is\n"
+		reply += "You can either type the full name of the category or the number next to it.\n"
+		for s in [f"`{i+1}: {constants.TYPES[i]}`\n" for i in range(len(constants.TYPES))]:
+			reply += s
+		# reply += f"`1: {constants.SPAM_KEYWORD}`\n"
+		# reply += f"`2: {constants.FRAUD_KEYWORD}`\n"
+		# reply += f"`3: {constants.HATE_KEYWORD}`\n"
+		# reply += f"`4: {constants.VIOLENCE_KEYWORD}`\n"
+		# reply += f"`5: {constants.INTIMATE_KEYWORD}`\n"
+		# reply += f"`6: {constants.OTHER_KEYWORD}`"
+		return [reply]
 
 	def get_subtype_options(self):
-		subtypes = []
 		if self.type == constants.SPAM_KEYWORD:
 			subtypes = constants.SPAM_TYPES
 		elif self.type == constants.FRAUD_KEYWORD:
@@ -127,26 +134,35 @@ class Report:
 	This function asks the user for the subtype of their report
 	'''
 	async def get_subtype(self, message):
-		if message.content not in constants.TYPES:
+		if message.content in [str(i+1) for i in range(len(constants.TYPES))]:
+			self.type = constants.TYPES[int(message.content)-1]
+		elif message.content not in constants.TYPES:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
-		self.type = message.content
+		else:
+			self.type = message.content
+
 		self.state = State.AWAITING_SUBTYPE
-		id_msg = "You've identified this messages as `" + self.type + "`\n"
+		reply = "You've identified this messages as `" + self.type + "`\n"
 
-		subtype_solicitation = "Let me know which of the following abuse subtypes this message is in\n"
-		for subtype_keyword in self.get_subtype_options():
-			subtype_solicitation += '`' + subtype_keyword + '`\n'
+		reply += "Let me know which of the following abuse subtypes this message is in\n"
+		reply += "You can either type the full name of the subtype or the number next to it\n"
+		options = self.get_subtype_options()
+		for i in range(len(options)):
+			reply += f"`{i+1}: {options[i]}`\n"
 
-		return [id_msg + subtype_solicitation]
+		return [reply]
 	'''
 	This function asks the user for comments on their report
 	'''
 	async def get_comments(self, message):
 		subtypes = self.get_subtype_options()
-
-		if message.content not in subtypes:
+		if message.content in [str(i+1) for i in range(len(subtypes))]:
+			self.subtype = subtypes[int(message.content)-1]
+		elif message.content not in subtypes:
 			return ["I'm sorry. That doesn't seem to match one of the options. Please try again."]
-		self.subtype = message.content
+		else:
+			self.subtype = message.content
+
 		self.state = State.AWAITING_COMMENTS
 		return ["You've further identified this messages as `" + self.subtype + "`\nAdd any comments you'd like to send to the mods."]
 
@@ -156,7 +172,7 @@ class Report:
 	async def confirm_report(self, message):
 		self.comment = message.content
 		reply =  "Alright, here's the report I'm sending to the mods\n"
-		reply += str(self) + "\n"
+		reply += self.user_str() + "\n"
 		reply += "Reply `yes` to send this report to the mods\n"
 		reply += "Reply `cancel` to cancel the reporting process"
 		self.state = State.AWAITING_CONFIRMATION
@@ -258,6 +274,16 @@ class Report:
 	'''
 	def report_complete(self):
 		return self.state == State.REPORT_COMPLETE
+
+	'''
+	Users do not need to see the rated severity of their reports
+	'''
+	def user_str(self):
+		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
+		s += f"`{self.reported_message.content}`\n"
+		s += f"The following comments are attached:\n"
+		s += f"`{self.comment}`"
+		return s
 
 	'''
 	Having a built-in string method is nice for many reasons

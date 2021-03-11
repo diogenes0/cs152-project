@@ -31,6 +31,18 @@ def make_mod_help():
     return mod_help
 
 
+def de_leet(s):
+    substitutions = {"1": "i", "2": "z", "3": "e", "4": "a", "5": "s", "6": "g", "7": "t", "8": "b", "9": "p", "0": "o"}
+    lst = []
+    for i in range(len(s)):
+        if s[i] in substitutions.keys():
+            lst.append(substitutions[s[i]])
+        else:
+            lst.append(s[i])
+    return "".join(lst)
+
+
+
 class ModBot(discord.Client):
     def __init__(self, key, data_path):
         self.data_path = data_path
@@ -40,7 +52,7 @@ class ModBot(discord.Client):
         self.mod_channels = {}  # Map from guild to the mod channel id for that guild
         self.reports = []  # List of reports
         self.perspective_key = key
-        self.threshold = 0.85  # threshold to auto-hide a message
+        self.threshold = 0.8  # threshold to auto-hide a message
         self.mod_help = make_mod_help()  # makes mod help message
         self.completed_reports = []
 
@@ -177,7 +189,7 @@ class ModBot(discord.Client):
 
         url = PERSPECTIVE_URL + '?key=' + self.perspective_key
         data_dict = {
-            'comment': {'text': unidecode(message.content)},
+            'comment': {'text': de_leet(unidecode(message.content))},
             'languages': ['en'],
             'requestedAttributes': {
                 'SEVERE_TOXICITY': {}, 'PROFANITY': {},

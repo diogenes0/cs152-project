@@ -14,9 +14,9 @@ from unidecode import unidecode
 
 
 def make_mod_help():
-    mod_help = "Type `next` to see the next report\n"
+    mod_help = "Type `next` to see the next report and end moderation of the current report\n"
     mod_help += "Type `help` to see this message\n"
-    mod_help += "Reply directly to a report to moderate it\n"
+    mod_help += "Reply to a report with any of the following commands\n"
     mod_help += "Here are your options moderating a report\n"
     mod_help += "`law`        incident is reported to law enforcement\n"
     mod_help += "`m_demote`   message is demoted in search\n"
@@ -27,7 +27,7 @@ def make_mod_help():
     mod_help += "`u_shadow`   user is shadowbanned. Nothing they do is visible to anyone but them\n"
     mod_help += "`u_suspend`  users is suspended from platform temporarily\n"
     mod_help += "`u_ban`      user is banned from platform. account is deactivated\n"
-    mod_help += "`none`       no action is taken\n"
+    mod_help += "`none`       no action is taken. previous actions are reversed\n"
     return mod_help
 
 
@@ -42,7 +42,6 @@ def de_leet(s):
     return "".join(lst)
 
 
-
 class ModBot(discord.Client):
     def __init__(self, key, data_path):
         self.data_path = data_path
@@ -55,6 +54,7 @@ class ModBot(discord.Client):
         self.threshold = 0.8  # threshold to auto-hide a message
         self.mod_help = make_mod_help()  # makes mod help message
         self.completed_reports = []
+        self.next_report_id = None
 
     async def on_ready(self):
         print(f'{self.user.name} has connected to Discord! It is these guilds:')
@@ -152,19 +152,30 @@ class ModBot(discord.Client):
         self.reports = [report for report in self.reports if not report.report_complete()]
 
         if message.content == "help":
-            return await message.channel.send(self.mod_help)
-
-        if message.reference:
-            for report in self.reports:
-                if message.reference.message_id == report.mod_message.id:
-                    return await report.moderate(message)
+            await message.channel.send(self.mod_help)
+            return
 
         if message.content == "next":
+            # archive last report
+            if self.next_report_id:
+                for report in self.reports:
+                    if report.reported_message.id == self.next_report_id:
+                        await report.end_moderation()
+                        break
+
             if not self.reports:
+                self.next_report_id = None
                 return await message.channel.send("There are no reports to moderate")
             self.reports = sorted(self.reports, reverse=True, key=Report.get_priority)
             print(["Msg: " + report.reported_message.content + ", Pri: " + str(report.get_priority()) for report in self.reports])
+            self.next_report_id = self.reports[0].reported_message.id
             [await rep.bump() for rep in self.reports if rep.reported_message.id == self.reports[0].reported_message.id]
+            return
+
+        for report in self.reports:
+            if self.next_report_id == report.reported_message.id:
+                await report.moderate(message)
+                return
 
     async def handle_channel_message(self, message):
         # Allow the bot to take input from the mods

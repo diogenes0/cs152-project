@@ -107,12 +107,6 @@ class Report:
 		reply += "You can either type the full name of the category or the number next to it.\n"
 		for s in [f"`{i+1}: {constants.TYPES[i]}`\n" for i in range(len(constants.TYPES))]:
 			reply += s
-		# reply += f"`1: {constants.SPAM_KEYWORD}`\n"
-		# reply += f"`2: {constants.FRAUD_KEYWORD}`\n"
-		# reply += f"`3: {constants.HATE_KEYWORD}`\n"
-		# reply += f"`4: {constants.VIOLENCE_KEYWORD}`\n"
-		# reply += f"`5: {constants.INTIMATE_KEYWORD}`\n"
-		# reply += f"`6: {constants.OTHER_KEYWORD}`"
 		return [reply]
 
 	def get_subtype_options(self):
@@ -195,39 +189,55 @@ class Report:
 	'''
 	async def moderate(self, message):
 		await self.reported_message.clear_reactions()
+		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 		m = message.content
 
+		if constants.MOD_U_NONE in m:
+			await mod_channel.send("Successfully took no action")
 		if constants.MOD_LAW in m:
 			self.actions.append(constants.MOD_LAW)
 			await self.reported_message.add_reaction(constants.EMOJI_LAW)
+			await mod_channel.send("Successfully reported to law enforcement")
 		if constants.MOD_M_DEMOTE in m:
 			self.actions.append(constants.MOD_M_DEMOTE)
 			await self.reported_message.add_reaction(constants.EMOJI_DEMOTE)
+			await mod_channel.send("Successfully demoted message")
 		if constants.MOD_M_HIDE in m:
 			self.actions.append(constants.MOD_M_HIDE)
 			await self.reported_message.add_reaction(constants.EMOJI_HIDE)
+			await mod_channel.send("Successfully hid message")
 		if constants.MOD_M_SHADOW in m:
 			self.actions.append(constants.MOD_M_SHADOW)
 			await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
+			await mod_channel.send("Successfully shadowhid message")
 		if constants.MOD_U_DEMOTE in m:
 			self.actions.append(constants.MOD_U_DEMOTE)
 			await self.reported_message.author.send("You have been demoted")
+			await mod_channel.send("Successfully demoted message")
 		if constants.MOD_U_HIDE in m:
 			self.actions.append(constants.MOD_U_HIDE)
 			await self.reported_message.author.send("You have been hidden")
+			await mod_channel.send("Successfully hid user")
 		if constants.MOD_U_SHADOW in m:
 			self.actions.append(constants.MOD_U_SHADOW)
 			await self.reported_message.author.send("You have been shadowbanned")
+			await mod_channel.send("Successfully shadowbanned user")
 		if constants.MOD_U_SUSPEND in m:
 			self.actions.append(constants.MOD_U_SUSPEND)
 			await self.reported_message.author.send("You have been suspended")
+			await mod_channel.send("Successfully suspended user")
 		if constants.MOD_U_BAN in m:
 			self.actions.append(constants.MOD_U_BAN)
 			await self.reported_message.author.send("You have been banned")
+			await mod_channel.send("Successfully banned user")
 
+	async def end_moderation(self):
 		for report in self.client.reports:
 			if report.reported_message.id == self.reported_message.id:
 				report.state = State.REPORT_COMPLETE
+		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
+		await mod_channel.send("Completed moderation of this report. It will now be archived")
+
 
 	'''
 	This function is called when a message is automatically flagged as severe enough to warrant automoderation

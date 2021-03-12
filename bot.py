@@ -114,27 +114,29 @@ class ModBot(discord.Client):
         responses = []
 
         if message.content.startswith(constants.START_KEYWORD):
-            if [report for report in self.reports if (report.reporter.id == author.id and report.state != State.AWAITING_MODERATION)]:
-                return [f"Please send `{constants.CANCEL_KEYWORD}` to finish you current report before starting a new one."]
+            for report in self.reports:
+                if report.reporter.id == author.id and report.state != State.AWAITING_MODERATION:
+                    await message.channel.send(f"Please send `{constants.CANCEL_KEYWORD}` to finish you current report before starting a new one.")
+                    return
 
         # Only respond to messages if they're part of a reporting flow
-        if author not in [report.reporter for report in self.reports] and not message.content.startswith(
-                constants.START_KEYWORD):
-            return
+        if author.id not in [report.reporter.id for report in self.reports]:
+            if not message.content.startswith(constants.START_KEYWORD) and not message.content.startswith(constants.APPEAL_KEYWORD):
+                return
 
         # If we don't currently have an active report for this user, add one
-        if author not in [report.reporter for report in self.reports if report.state != State.AWAITING_MODERATION]:
+        if author.id not in [report.reporter.id for report in self.reports if report.state != State.AWAITING_MODERATION]:
             self.reports.append(Report(self, author))
 
         # Finds the report belonging to author
         # Note that each client can only have one report
         report_index = None
         for i in range(len(self.reports)):
-            if self.reports[i].reporter == author and self.reports[i].state != State.AWAITING_MODERATION:
+            if self.reports[i].reporter.id == author.id and self.reports[i].state != State.AWAITING_MODERATION:
                 report_index = i
                 break
 
-        # Let the report class handle this message; forward all the messages it returns to uss
+        # Let the report class handle this message; forward all the messages it returns to us
         responses = await self.reports[report_index].handle_message(message)
         for r in responses:
             await message.channel.send(r)
@@ -161,6 +163,7 @@ class ModBot(discord.Client):
                 for report in self.reports:
                     if report.reported_message.id == self.next_report_id:
                         await report.end_moderation()
+                        self.next_report_id = None
                         break
 
             if not self.reports:
@@ -187,9 +190,10 @@ class ModBot(discord.Client):
             await self.moderate_message(message)
 
     async def moderate_message(self, message):
-        if self.eval_text(message)[0] >= self.threshold:
+        eval = self.eval_text(message)
+        if eval[0] >= self.threshold:
             report = Report(self, self.user)
-            await report.automoderate(message)
+            await report.automoderate(message, eval)
             self.reports.append(report)
 
     def eval_text(self, message):

@@ -1,4 +1,5 @@
 START_KEYWORD = "report"
+APPEAL_KEYWORD = "appeal"
 CANCEL_KEYWORD = "cancel"
 HELP_KEYWORD = "help"
 CONFIRM_KEYWORD = "yes"
@@ -66,3 +67,37 @@ HATE_TYPES = [H_RACE_KEYWORD, H_ETHNICITY_KEYWORD, H_NATIONALITY_KEYWORD, H_SEXU
 VIOLENCE_TYPES = [V_OTHERS_KEYWORD, V_SELF_KEYWORD, V_SUICIDE_KEYWORD, V_OTHER_KEYWORD]
 INTIMATE_TYPES = [I_SEXUAL_KEYWORD, I_PI_KEYWORD, I_OTHER_KEYWORD]
 OTHER_TYPES = [O_GOODS_KEYWORD, O_THEFT_KEYWORD, O_VANDALISM_KEYWORD, O_OTHER_KEYWORD]
+
+
+def user_action_to_word(action):
+    if action == MOD_M_HIDE:
+        return "The message was removed\n"
+    elif action == MOD_U_SUSPEND:
+        return "You were suspended\n"
+    elif action == MOD_U_BAN:
+        return "You were banned\n"
+    else:
+        return ""
+
+
+def action_to_word(action):
+    if action == MOD_LAW:
+        return "The incident was reported to law enforcement\n"
+    elif action == MOD_M_DEMOTE:
+        return "The message was demoted in search\n"
+    elif action == MOD_M_HIDE:
+        return "The message was removed\n"
+    elif action == MOD_M_SHADOW:
+        return "The message was shadowhidden\n"
+    elif action == MOD_U_DEMOTE:
+        return "The user was demoted in search and recommendations\n"
+    elif action == MOD_U_HIDE:
+        return "The user was hidden in search and recommendations\n"
+    elif action == MOD_U_SHADOW:
+        return "The user was shadowbanned\n"
+    elif action == MOD_U_SUSPEND:
+        return "The user was suspended\n"
+    elif action == MOD_U_NONE:
+        return "No action was taken\n"
+    else:
+        return ""

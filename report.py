@@ -7,6 +7,7 @@ import constants
 
 
 class State(Enum):
+	# Normal report states
 	REPORT_START = auto()
 	AWAITING_MESSAGE = auto()
 	MESSAGE_IDENTIFIED = auto()
@@ -15,6 +16,10 @@ class State(Enum):
 	AWAITING_CONFIRMATION = auto()
 	AWAITING_MODERATION = auto()
 	REPORT_COMPLETE = auto()
+
+	# Appeal states
+	AWAITING_TICKET = auto()
+	AWAITING_APPEAL_COMMENTS = auto()
 
 
 @total_ordering
@@ -31,7 +36,8 @@ class Report:
 		self.mod_message = None
 		self.creation_time = datetime.now()
 		self.severity = 0
-		self.actions = []
+		self.actions = set()
+		self.appeal = False
 
 
 	'''
@@ -40,11 +46,12 @@ class Report:
 	get you started and give you a model for working with Discord.
 	'''
 	async def handle_message(self, message):
+		# This handles the normal reporting flow
 		if message.content == constants.CANCEL_KEYWORD:
 			self.state = State.REPORT_COMPLETE
 			return ["Report cancelled."]
-		elif self.state == State.REPORT_START:
-			return await self.start_report(message)
+		elif message.content.startswith(constants.START_KEYWORD):
+			return await self.start_report()
 		elif self.state == State.AWAITING_MESSAGE:
 			return await self.read_message(message)
 		elif self.state == State.MESSAGE_IDENTIFIED:
@@ -55,14 +62,45 @@ class Report:
 			return await self.confirm_report(message)
 		elif self.state == State.AWAITING_CONFIRMATION:
 			return await self.send_report(message)
+
+		# This handles the appeal flow
+		elif message.content == constants.APPEAL_KEYWORD:
+			return await self.begin_appeal(message)
+		elif self.state == State.AWAITING_TICKET:
+			return await self.get_ticket(message)
+		elif self.state == State.AWAITING_APPEAL_COMMENTS:
+			return await self.confirm_report(message)
 		else:
 			return []
 
+	async def begin_appeal(self, message):
+		self.appeal = True
+		self.state = State.AWAITING_TICKET
+		self.type = constants.APPEAL_KEYWORD
+		self.subtype = constants.APPEAL_KEYWORD
+		self.reporter = message.author
+		return ["Please type your ticket number below"]
+
+	async def get_ticket(self, message):
+		for report in self.client.completed_reports + self.client.reports:
+			if str(report.reported_message.id) == message.content:
+				self.reported_message = report.reported_message
+				self.severity = report.severity
+				for action in report.actions:
+					self.actions.add(action)
+		reply = "You have appealed action based on the following message:\n"
+		reply += f"`{self.reported_message.content}`\n"
+		reply += "The following actions were taken because of this message:\n"
+		for action in self.actions:
+			reply += constants.user_action_to_word(action)
+		reply += "Reply below with any additional comments you want to send to the mods"
+		self.state = State.AWAITING_COMMENTS
+		return [reply]
 
 	'''
 	This function prints a message and starts the reporting flow
 	'''
-	async def start_report(self, message):
+	async def start_report(self):
 		reply =  "Thank you for starting the reporting process. "
 		reply += "Say `help` at any time for more information.\n\n"
 		reply += "Please copy paste the link to the message you want to report.\n"
@@ -165,12 +203,12 @@ class Report:
 	'''
 	async def confirm_report(self, message):
 		self.comment = message.content
-		reply =  "Alright, here's the report I'm sending to the mods\n"
+		reply =  "Alright, here's what I'm sending to the mods\n"
 		reply += self.user_str() + "\n"
 		reply += "Reply `yes` to send this report to the mods\n"
 		reply += "Reply `cancel` to cancel the reporting process"
 		self.state = State.AWAITING_CONFIRMATION
-		return [ reply ]
+		return [reply]
 
 	'''
 	This function sends the report to the mod channel and informs the user
@@ -188,66 +226,92 @@ class Report:
 	This function applies the decision of the moderators to a message
 	'''
 	async def moderate(self, message):
-		await self.reported_message.clear_reactions()
+		if not self.actions:
+			await self.reported_message.clear_reactions()
 		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
 		m = message.content
 
 		if constants.MOD_U_NONE in m:
+			self.actions.add(constants.MOD_U_NONE)
+			await self.reported_message.clear_reactions()
 			await mod_channel.send("Successfully took no action")
 		if constants.MOD_LAW in m:
-			self.actions.append(constants.MOD_LAW)
+			self.actions.add(constants.MOD_LAW)
 			await self.reported_message.add_reaction(constants.EMOJI_LAW)
 			await mod_channel.send("Successfully reported to law enforcement")
 		if constants.MOD_M_DEMOTE in m:
-			self.actions.append(constants.MOD_M_DEMOTE)
+			self.actions.add(constants.MOD_M_DEMOTE)
 			await self.reported_message.add_reaction(constants.EMOJI_DEMOTE)
 			await mod_channel.send("Successfully demoted message")
 		if constants.MOD_M_HIDE in m:
-			self.actions.append(constants.MOD_M_HIDE)
+			self.actions.add(constants.MOD_M_HIDE)
 			await self.reported_message.add_reaction(constants.EMOJI_HIDE)
 			await mod_channel.send("Successfully hid message")
 		if constants.MOD_M_SHADOW in m:
-			self.actions.append(constants.MOD_M_SHADOW)
+			self.actions.add(constants.MOD_M_SHADOW)
 			await self.reported_message.add_reaction(constants.EMOJI_SHADOW)
 			await mod_channel.send("Successfully shadowhid message")
 		if constants.MOD_U_DEMOTE in m:
-			self.actions.append(constants.MOD_U_DEMOTE)
+			self.actions.add(constants.MOD_U_DEMOTE)
 			await self.reported_message.author.send("You have been demoted")
 			await mod_channel.send("Successfully demoted message")
 		if constants.MOD_U_HIDE in m:
-			self.actions.append(constants.MOD_U_HIDE)
+			self.actions.add(constants.MOD_U_HIDE)
 			await self.reported_message.author.send("You have been hidden")
 			await mod_channel.send("Successfully hid user")
 		if constants.MOD_U_SHADOW in m:
-			self.actions.append(constants.MOD_U_SHADOW)
+			self.actions.add(constants.MOD_U_SHADOW)
 			await self.reported_message.author.send("You have been shadowbanned")
 			await mod_channel.send("Successfully shadowbanned user")
 		if constants.MOD_U_SUSPEND in m:
-			self.actions.append(constants.MOD_U_SUSPEND)
+			self.actions.add(constants.MOD_U_SUSPEND)
 			await self.reported_message.author.send("You have been suspended")
 			await mod_channel.send("Successfully suspended user")
 		if constants.MOD_U_BAN in m:
-			self.actions.append(constants.MOD_U_BAN)
+			self.actions.add(constants.MOD_U_BAN)
 			await self.reported_message.author.send("You have been banned")
 			await mod_channel.send("Successfully banned user")
 
 	async def end_moderation(self):
+		for action in self.actions:
+			if action == constants.MOD_M_HIDE:
+				msg = "The following message you posted has been hidden:\n"
+				msg += f"`{self.reported_message.content}`\n"
+				msg += "To appeal this decision, DM the bot with the word `appeal`"
+				msg += f"Your ticket number is `{self.reported_message.id}`"
+				await self.reported_message.author.send(msg)
+			elif action == constants.MOD_U_SUSPEND:
+				msg = "You have been suspended for posting the following message:\n"
+				msg += f"`{self.reported_message.content}`\n"
+				msg += "To appeal this decision, DM the bot with the word `appeal`"
+				msg += f"Your ticket number is `{self.reported_message.id}`"
+				await self.reported_message.author.send(msg)
+			elif action == constants.MOD_U_BAN:
+				msg = "You have been banned for posting the following message:\n"
+				msg += f"`{self.reported_message.content}`\n"
+				msg += "To appeal this decision, DM the bot with the word `appeal`"
+				msg += f"Your ticket number is `{self.reported_message.id}`"
+				await self.reported_message.author.send(msg)
+
 		for report in self.client.reports:
 			if report.reported_message.id == self.reported_message.id:
+				if report.reporter != self.client.user:
+					await report.reporter.send(f"Your report numbered `{report.reported_message.id}` has been moderated")
 				report.state = State.REPORT_COMPLETE
+				self.client.completed_reports.append(report)
+		self.client.reports = [report for report in self.client.reports if not report.report_complete()]
 		mod_channel = self.client.mod_channels[self.reported_message.guild.id]
-		await mod_channel.send("Completed moderation of this report. It will now be archived")
+		await mod_channel.send(f"Completed moderation of report `{self.reported_message.id}`. It will now be archived")
 
 
 	'''
 	This function is called when a message is automatically flagged as severe enough to warrant automoderation
 	'''
-	async def automoderate(self, message):
+	async def automoderate(self, message, eval):
 		self.reporter = self.client.user
 		self.reported_message = message
 		self.comment = "Automatically generated report"
 		self.state = State.AWAITING_MODERATION
-		eval = self.client.eval_text(message)
 		self.severity = eval[0]
 		self.type = eval[1]
 		self.subtype = eval[2]
@@ -289,22 +353,47 @@ class Report:
 	Users do not need to see the rated severity of their reports
 	'''
 	def user_str(self):
-		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
-		s += f"`{self.reported_message.content}`\n"
-		s += f"The following comments are attached:\n"
-		s += f"`{self.comment}`"
-		return s
+		if not self.appeal:
+			s =  f"Report number `{self.reported_message.id}`\n"
+			s += f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
+			s += f"`{self.reported_message.content}`\n"
+			s += f"The following comments are attached:\n"
+			s += f"`{self.comment}`"
+			return s
+		else:
+			s =  f"Report number `{self.reported_message.id}`\n"
+			s += f"User `{self.reporter.name}` appeal appealed action against the following message from `{self.reported_message.author.name}`\n"
+			s += f"`{self.reported_message.content}`\n"
+			s += "The following actions were taken:\n"
+			for action in self.actions:
+				s += constants.user_action_to_word(action)
+			s += f"The following comments are attached:\n"
+			s += f"`{self.comment}`"
+			return s
 
 	'''
 	Having a built-in string method is nice for many reasons
 	'''
 	def __str__(self):
-		s =  f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
-		s += f"`{self.reported_message.content}`\n"
-		s += f"Rated at severity {round(self.severity, 2)}\n"
-		s += f"The following comments are attached:\n"
-		s += f"`{self.comment}`"
-		return s
+		if not self.appeal:
+			s =  f"Report number `{self.reported_message.id}`\n"
+			s += f"User `{self.reporter.name}` reported the following message from user `{self.reported_message.author.name}` as `{self.type}`, `{self.subtype}`\n"
+			s += f"`{self.reported_message.content}`\n"
+			s += f"Rated at severity {round(self.severity, 2)}\n"
+			s += f"The following comments are attached:\n"
+			s += f"`{self.comment}`"
+			return s
+		else:
+			s =  f"Report number `{self.reported_message.id}`\n"
+			s += f"User `{self.reporter.name}` appeal appealed action against the following message from `{self.reported_message.author.name}`\n"
+			s += f"`{self.reported_message.content}`\n"
+			s += f"Rated at severity {round(self.severity, 2)}\n"
+			s += "The following actions were taken:\n"
+			for action in self.actions:
+				s += constants.action_to_word(action)
+			s += f"The following comments are attached:\n"
+			s += f"`{self.comment}`"
+			return s
 
 	'''
 	Having these methods allows us to have a total ordering and get reports in order of priority
